@@ -240,3 +240,130 @@ export const laravelApi = {
     })
   },
 }
+
+// Analytics types
+export interface AnalyticsKpis {
+  total_revenue: number
+  total_costs: number
+  net_margin: number
+  total_properties: number
+  total_bookings: number
+  avg_occupancy: number
+  avg_nightly_rate: number
+  top_channel: string
+}
+
+export interface RevenueByChannel {
+  channel: string
+  bookings_count: number
+  total_revenue: number
+  avg_amount: number
+  percentage: number
+}
+
+export interface RevenueByMonth {
+  month: string
+  bookings_count: number
+  revenue: number
+  costs: number
+  net_margin: number
+}
+
+export interface RevenueByProperty {
+  property_id: number
+  property_name: string
+  bookings_count: number
+  revenue: number
+  avg_per_booking: number
+}
+
+export interface PropertyRanking {
+  property_id: number
+  property_name: string
+  revenue: number
+  costs: number
+  net_margin: number
+  bookings_count: number
+  occupancy_rate: number
+}
+
+export interface CostsSummary {
+  total_purchases: number
+  total_expenses: number
+  total_costs: number
+  by_category: { category: string; total: number }[]
+  by_imputation: { imputation: string; total: number }[]
+  by_responsible: { responsible: string; total: number }[]
+}
+
+export interface CashFlowItem {
+  month: string
+  count: number
+  total: number
+}
+
+export interface CashFlow {
+  upcoming_income: CashFlowItem[]
+  upcoming_expenses: CashFlowItem[]
+}
+
+export interface PropertyProfitability {
+  property_id: number
+  property_name: string
+  gross_revenue: number
+  direct_costs: number
+  gross_margin: number
+  indirect_costs: number
+  net_margin: number
+  roi_percent: number
+  nights_sold: number
+  bookings_count: number
+  avg_nightly_rate: number
+  occupancy_rate: number
+  holasur_costs: number
+  owner_costs: number
+}
+
+function dateParams(from?: string, to?: string): string {
+  const params = new URLSearchParams()
+  if (from) params.set('from', from)
+  if (to) params.set('to', to)
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+export const analyticsApi = {
+  getKpis(from?: string, to?: string): Promise<AnalyticsKpis> {
+    return request<AnalyticsKpis>(`${API_URL}/analytics/kpis${dateParams(from, to)}`)
+  },
+
+  getRevenueByChannel(from?: string, to?: string): Promise<RevenueByChannel[]> {
+    return request<RevenueByChannel[]>(`${API_URL}/analytics/revenue/by-channel${dateParams(from, to)}`)
+  },
+
+  getRevenueByMonth(year?: number): Promise<RevenueByMonth[]> {
+    const params = year ? `?year=${year}` : ''
+    return request<RevenueByMonth[]>(`${API_URL}/analytics/revenue/by-month${params}`)
+  },
+
+  getRevenueByProperty(from?: string, to?: string): Promise<RevenueByProperty[]> {
+    return request<RevenueByProperty[]>(`${API_URL}/analytics/revenue/by-property${dateParams(from, to)}`)
+  },
+
+  getPropertiesRanking(from?: string, to?: string): Promise<PropertyRanking[]> {
+    return request<PropertyRanking[]>(`${API_URL}/analytics/properties/ranking${dateParams(from, to)}`)
+  },
+
+  getCostsSummary(from?: string, to?: string): Promise<CostsSummary> {
+    return request<CostsSummary>(`${API_URL}/analytics/costs/summary${dateParams(from, to)}`)
+  },
+
+  getCashFlow(months?: number): Promise<CashFlow> {
+    const params = months ? `?months=${months}` : ''
+    return request<CashFlow>(`${API_URL}/analytics/cashflow${params}`)
+  },
+
+  getPropertyProfitability(id: number, from?: string, to?: string): Promise<PropertyProfitability> {
+    return request<PropertyProfitability>(`${API_URL}/analytics/property/${id}/profitability${dateParams(from, to)}`)
+  },
+}

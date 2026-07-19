@@ -29,6 +29,10 @@ import { RouterLink, RouterView } from 'vue-router'
         <span class="sidebar__icon">&#128176;</span>
         Costes
       </RouterLink>
+      <RouterLink to="/analisis" class="sidebar__link">
+        <span class="sidebar__icon">&#128202;</span>
+        Analisis
+      </RouterLink>
     </nav>
   </aside>
   <div class="main">

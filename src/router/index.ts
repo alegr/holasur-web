@@ -39,6 +39,16 @@ const router = createRouter({
       name: 'nuevo-egreso',
       component: () => import('../views/ExpenseFormView.vue'),
     },
+    {
+      path: '/analisis',
+      name: 'analisis',
+      component: () => import('../views/AnalyticsView.vue'),
+    },
+    {
+      path: '/analisis/propiedad/:id',
+      name: 'propiedad-reporte',
+      component: () => import('../views/PropertyReportView.vue'),
+    },
   ],
 })
 
