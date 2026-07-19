@@ -24,6 +24,21 @@ const router = createRouter({
       name: 'reservas',
       component: () => import('../views/BookingsView.vue'),
     },
+    {
+      path: '/costes',
+      name: 'costes',
+      component: () => import('../views/CostsView.vue'),
+    },
+    {
+      path: '/costes/compra/nueva',
+      name: 'nueva-compra',
+      component: () => import('../views/PurchaseFormView.vue'),
+    },
+    {
+      path: '/costes/egreso/nuevo',
+      name: 'nuevo-egreso',
+      component: () => import('../views/ExpenseFormView.vue'),
+    },
   ],
 })
 
