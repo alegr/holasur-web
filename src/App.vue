@@ -25,6 +25,10 @@ import { RouterLink, RouterView } from 'vue-router'
         <span class="sidebar__icon">&#128197;</span>
         Reservas
       </RouterLink>
+      <RouterLink to="/costes" class="sidebar__link">
+        <span class="sidebar__icon">&#128176;</span>
+        Costes
+      </RouterLink>
     </nav>
   </aside>
   <div class="main">
