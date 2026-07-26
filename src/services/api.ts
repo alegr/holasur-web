@@ -52,6 +52,17 @@ export const importerApi = {
   stopImport(sessionId: string): Promise<{ message: string }> {
     return request<{ message: string }>(`${IMPORTER_URL}/import/${sessionId}/stop`, { method: 'POST' })
   },
+
+  async getActiveSession(): Promise<{ active: boolean; sessionId?: string }> {
+    return request<{ active: boolean; sessionId?: string }>(`${IMPORTER_URL}/import/active`)
+  },
+
+  importDetail(
+    sessionId: string,
+    entity: string,
+  ): Promise<{ entity: string; detail: Record<string, unknown> | null; status: string }> {
+    return request(`${IMPORTER_URL}/import/${sessionId}/detail/${entity}`, { method: 'POST' })
+  },
 }
 
 // Laravel API (port 8001)

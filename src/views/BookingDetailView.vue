@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { laravelApi, type Booking } from '@/services/api'
+import { laravelApi, importerApi, type Booking } from '@/services/api'
 
 const route = useRoute()
 const bookingId = computed(() => Number(route.params.id))
@@ -9,6 +9,8 @@ const bookingId = computed(() => Number(route.params.id))
 const booking = ref<Booking | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const updating = ref(false)
+const updateMessage = ref<string | null>(null)
 
 function formatDate(d: string | null): string {
   if (!d) return '--'
@@ -144,6 +146,37 @@ async function fetchBooking() {
   }
 }
 
+async function updateFromAvantio() {
+  updating.value = true
+  updateMessage.value = 'Conectando con Avantio...'
+  try {
+    let sessionId: string
+    const active = await importerApi.getActiveSession()
+    if (active.active && active.sessionId) {
+      sessionId = active.sessionId
+    } else {
+      updateMessage.value = 'Abriendo Avantio... Inicia sesión en la ventana del navegador'
+      const session = await importerApi.startImport()
+      sessionId = session.sessionId
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        const status = await importerApi.getStatus(sessionId)
+        if (status.status === 'logged_in' || status.status === 'done') break
+        if (status.status === 'error') throw new Error(status.error || 'Error de login')
+      }
+    }
+    updateMessage.value = 'Importando detalle de reserva...'
+    await importerApi.importDetail(sessionId, 'bookings')
+    updateMessage.value = 'Actualizado correctamente'
+    await fetchBooking()
+    setTimeout(() => { updateMessage.value = null }, 3000)
+  } catch (e) {
+    updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+  } finally {
+    updating.value = false
+  }
+}
+
 onMounted(fetchBooking)
 </script>
 
@@ -163,6 +196,12 @@ onMounted(fetchBooking)
 
     <!-- Content -->
     <template v-else-if="booking">
+      <!-- Update message -->
+      <div v-if="updateMessage" class="import-widget__row" :class="updating ? 'import-widget__row--info' : 'import-widget__row--success'" style="margin-bottom: 16px">
+        <span v-if="updating" class="spinner spinner--small"></span>
+        <span>{{ updateMessage }}</span>
+      </div>
+
       <!-- Header -->
       <div class="detail__header">
         <RouterLink to="/reservas" class="detail__back">&larr; Volver a reservas</RouterLink>
@@ -173,6 +212,10 @@ onMounted(fetchBooking)
           <span class="badge" :class="statusClass(booking.status)">
             {{ booking.status || '--' }}
           </span>
+          <button class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
+            <span v-if="updating" class="spinner spinner--small"></span>
+            {{ updating ? '' : '↻' }} Actualizar desde Avantio
+          </button>
         </div>
       </div>
 

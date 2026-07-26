@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   laravelApi,
   analyticsApi,
+  importerApi,
   type Property,
   type Booking,
   type Purchase,
@@ -22,6 +23,8 @@ const profitability = ref<PropertyProfitability | null>(null)
 
 const loading = ref(true)
 const error = ref<string | null>(null)
+const updating = ref(false)
+const updateMessage = ref<string | null>(null)
 
 function formatDate(d: string | null): string {
   if (!d) return '--'
@@ -172,7 +175,8 @@ async function fetchData() {
 
     // Fetch profitability (may fail if no data)
     try {
-      profitability.value = await analyticsApi.getPropertyProfitability(propertyId.value)
+      const profRes = await analyticsApi.getPropertyProfitability(propertyId.value) as any
+      profitability.value = profRes?.data || profRes
     } catch {
       profitability.value = null
     }
@@ -180,6 +184,39 @@ async function fetchData() {
     error.value = e instanceof Error ? e.message : 'Error al cargar propiedad'
   } finally {
     loading.value = false
+  }
+}
+
+async function updateFromAvantio() {
+  updating.value = true
+  updateMessage.value = 'Conectando con Avantio...'
+  try {
+    // Check for active session or start new one
+    let sessionId: string
+    const active = await importerApi.getActiveSession()
+    if (active.active && active.sessionId) {
+      sessionId = active.sessionId
+    } else {
+      updateMessage.value = 'Abriendo Avantio... Inicia sesión en la ventana del navegador'
+      const session = await importerApi.startImport()
+      sessionId = session.sessionId
+      // Poll for login
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        const status = await importerApi.getStatus(sessionId)
+        if (status.status === 'logged_in' || status.status === 'done') break
+        if (status.status === 'error') throw new Error(status.error || 'Error de login')
+      }
+    }
+    updateMessage.value = 'Importando detalle de propiedad...'
+    await importerApi.importDetail(sessionId, 'properties')
+    updateMessage.value = 'Actualizado correctamente'
+    await fetchData()
+    setTimeout(() => { updateMessage.value = null }, 3000)
+  } catch (e) {
+    updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+  } finally {
+    updating.value = false
   }
 }
 
@@ -202,6 +239,12 @@ onMounted(fetchData)
 
     <!-- Content -->
     <template v-else-if="property">
+      <!-- Update message -->
+      <div v-if="updateMessage" class="import-widget__row" :class="updating ? 'import-widget__row--info' : 'import-widget__row--success'" style="margin-bottom: 16px">
+        <span v-if="updating" class="spinner spinner--small"></span>
+        <span>{{ updateMessage }}</span>
+      </div>
+
       <!-- Header -->
       <div class="detail__header">
         <RouterLink to="/propiedades" class="detail__back">&larr; Volver a propiedades</RouterLink>
@@ -210,6 +253,10 @@ onMounted(fetchData)
           <span v-if="property.avantio_id" class="detail__avantio-id">
             Avantio: {{ property.avantio_id }}
           </span>
+          <button class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
+            <span v-if="updating" class="spinner spinner--small"></span>
+            {{ updating ? '' : '↻' }} Actualizar desde Avantio
+          </button>
           <span
             class="badge"
             :class="property.is_active ? 'badge--success' : 'badge--error'"
@@ -481,14 +528,14 @@ onMounted(fetchData)
           </div>
           <div class="detail__field">
             <span class="detail__label">Margen neto</span>
-            <span class="detail__value" :style="{ color: profitability.net_margin >= 0 ? 'var(--color-success)' : 'var(--color-error)' }">
+            <span class="detail__value" :style="{ color: (profitability.net_margin ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-error)' }">
               {{ formatAmount(profitability.net_margin) }}
             </span>
           </div>
           <div class="detail__field">
             <span class="detail__label">ROI</span>
             <span class="detail__value detail__value--highlight">
-              {{ profitability.roi_percent.toFixed(1) }}%
+              {{ (profitability.roi_percent ?? 0).toFixed(1) }}%
             </span>
           </div>
         </div>
