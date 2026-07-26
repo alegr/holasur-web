@@ -23,6 +23,7 @@ const status = ref<WidgetStatus>('idle')
 const sessionId = ref<string | null>(null)
 const error = ref<string | null>(null)
 const importedCount = ref<number>(0)
+const progressText = ref<string>('')
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const autoCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
@@ -49,6 +50,17 @@ async function startImport() {
   status.value = 'starting'
   error.value = null
   try {
+    // Check for an existing active session first (reuse if logged in)
+    const activeRes = await fetch('http://localhost:3100/import/active')
+    const active = await activeRes.json()
+    if (active.active && active.sessionId) {
+      sessionId.value = active.sessionId
+      status.value = 'importing'
+      await runEntityImport()
+      return
+    }
+
+    // No active session — start a new one
     const result = await importerApi.startImport()
     sessionId.value = result.sessionId
     status.value = 'waiting_for_login'
@@ -69,6 +81,10 @@ function startPolling() {
         stopPolling()
         status.value = 'importing'
         await runEntityImport()
+      } else if (result.status === 'importing') {
+        const results = result.importResults || {}
+        const total = Object.values(results).reduce((a, b) => a + b, 0)
+        if (total > 0) progressText.value = `${total} registros encontrados...`
       } else if (result.status === 'done') {
         stopPolling()
         const results = result.importResults || {}
@@ -76,9 +92,12 @@ function startPolling() {
         importedCount.value = total
         status.value = 'done'
         emit('imported')
-        autoCloseTimer.value = setTimeout(() => {
-          stopSession()
-        }, 3000)
+        // Close browser window
+        setTimeout(async () => {
+          if (sessionId.value) {
+            try { await importerApi.stopImport(sessionId.value) } catch { /* ignore */ }
+          }
+        }, 2000)
       } else if (result.status === 'error') {
         stopPolling()
         error.value = result.error || 'Error durante la importación'
@@ -166,7 +185,7 @@ function retry() {
     <!-- Importing -->
     <div v-else-if="status === 'importing'" class="import-widget__row import-widget__row--info">
       <span class="spinner spinner--small"></span>
-      <span>Importando {{ entityLabel }}...</span>
+      <span>Importando {{ entityLabel }}... {{ progressText }}</span>
       <a class="import-widget__cancel" @click.prevent="cancel">Cancelar</a>
     </div>
 
