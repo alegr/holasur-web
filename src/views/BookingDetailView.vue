@@ -46,9 +46,90 @@ function statusClass(status: string | null): string {
   }
 }
 
+// Detail data from raw_data._detail
+const detail = computed(() => {
+  if (!booking.value?.raw_data?._detail) return null
+  return booking.value.raw_data._detail as Record<string, string>
+})
+
+const hasDetail = computed(() => detail.value !== null)
+
+// Currency code to ISO mapping
+function currencyFromCode(code: string | undefined): string {
+  if (!code) return 'USD'
+  switch (code) {
+    case '840': return 'USD'
+    case '978': return 'EUR'
+    case '032': return 'ARS'
+    default: return 'USD'
+  }
+}
+
+// Guest breakdown from _detail
+const guestBreakdown = computed(() => {
+  if (!detail.value) return null
+  const adults = detail.value['_t_Adults']
+  const children = detail.value['_t_Children']
+  const babies = detail.value['_t_Babies']
+  if (!adults && !children && !babies) return null
+  const parts: string[] = []
+  if (adults && adults !== '0') parts.push(`${adults} adulto${adults === '1' ? '' : 's'}`)
+  if (children && children !== '0') parts.push(`${children} ni\u00f1o${children === '1' ? '' : 's'}`)
+  if (babies && babies !== '0') parts.push(`${babies} beb\u00e9${babies === '1' ? '' : 's'}`)
+  return parts.join(', ')
+})
+
+// Economic breakdown
+interface BreakdownLine {
+  label: string
+  value: string
+  isTotal?: boolean
+}
+
+const economicBreakdown = computed((): BreakdownLine[] => {
+  if (!detail.value) return []
+  const lines: BreakdownLine[] = []
+  if (detail.value['_t_Property']) {
+    lines.push({ label: 'Alojamiento', value: detail.value['_t_Property'] })
+  }
+  if (detail.value['_t_Total extras']) {
+    lines.push({ label: 'Extras', value: detail.value['_t_Total extras'] })
+  }
+  if (detail.value['_t_TOTAL']) {
+    lines.push({ label: 'Total', value: detail.value['_t_TOTAL'], isTotal: true })
+  }
+  return lines
+})
+
+// Payment info
+interface PaymentInfo {
+  amount: string
+  currency: string
+  status: string
+}
+
+const payments = computed((): PaymentInfo[] => {
+  if (!detail.value) return []
+  const result: PaymentInfo[] = []
+  for (let i = 1; i <= 5; i++) {
+    const amount = detail.value[`amountHiddenCompPop${i}`]
+    if (amount && parseFloat(amount) > 0) {
+      const currCode = detail.value[`currencyPago${i}`]
+      const currency = currencyFromCode(currCode)
+      const paid = detail.value[`pagoRealizado${i}`]
+      result.push({
+        amount: formatAmount(amount, currency),
+        currency,
+        status: paid === '1' ? 'Pagado' : 'Pendiente',
+      })
+    }
+  }
+  return result
+})
+
 const rawDataEntries = computed(() => {
   if (!booking.value?.raw_data) return []
-  return Object.entries(booking.value.raw_data)
+  return Object.entries(booking.value.raw_data).filter(([key]) => key !== '_detail')
 })
 
 async function fetchBooking() {
@@ -97,7 +178,7 @@ onMounted(fetchBooking)
 
       <!-- Info card -->
       <div class="card detail__section">
-        <h3 class="detail__section-title">Información</h3>
+        <h3 class="detail__section-title">Informaci&oacute;n de la reserva</h3>
         <div class="detail__grid">
           <div class="detail__field">
             <span class="detail__label">Propiedad</span>
@@ -113,22 +194,35 @@ onMounted(fetchBooking)
             <span class="detail__value">{{ booking.channel || '--' }}</span>
           </div>
           <div class="detail__field">
+            <span class="detail__label">Referencia Avantio</span>
+            <span class="detail__value">
+              <code>{{ booking.avantio_reference || booking.avantio_id || '--' }}</code>
+            </span>
+          </div>
+          <div v-if="detail?.record" class="detail__field">
+            <span class="detail__label">Registro</span>
+            <span class="detail__value">
+              <code>{{ detail.record }}</code>
+            </span>
+          </div>
+          <div class="detail__field">
             <span class="detail__label">Check-in</span>
-            <span class="detail__value">{{ formatDate(booking.check_in) }}</span>
+            <span class="detail__value">{{ detail?.fechaEntrada ? formatDate(detail.fechaEntrada) : formatDate(booking.check_in) }}</span>
           </div>
           <div class="detail__field">
             <span class="detail__label">Check-out</span>
-            <span class="detail__value">{{ formatDate(booking.check_out) }}</span>
+            <span class="detail__value">{{ detail?.fechaSalida ? formatDate(detail.fechaSalida) : formatDate(booking.check_out) }}</span>
           </div>
           <div class="detail__field">
             <span class="detail__label">Noches</span>
             <span class="detail__value">{{ booking.nights ?? '--' }}</span>
           </div>
           <div class="detail__field">
-            <span class="detail__label">Huéspedes</span>
+            <span class="detail__label">Hu&eacute;spedes</span>
             <span class="detail__value">
-              <span v-if="booking.adults || booking.children">
-                {{ booking.adults || 0 }} adultos{{ booking.children ? ` + ${booking.children} niños` : '' }}
+              <span v-if="guestBreakdown">{{ guestBreakdown }}</span>
+              <span v-else-if="booking.adults || booking.children">
+                {{ booking.adults || 0 }} adultos{{ booking.children ? ` + ${booking.children} ni&ntilde;os` : '' }}
               </span>
               <span v-else>--</span>
             </span>
@@ -151,16 +245,59 @@ onMounted(fetchBooking)
               </span>
             </span>
           </div>
-          <div class="detail__field">
-            <span class="detail__label">Referencia Avantio</span>
-            <span class="detail__value">
-              <code>{{ booking.avantio_reference || booking.avantio_id || '--' }}</code>
-            </span>
+        </div>
+      </div>
+
+      <!-- Economic breakdown (from _detail) -->
+      <div v-if="hasDetail && economicBreakdown.length > 0" class="card detail__section">
+        <h3 class="detail__section-title">Desglose econ&oacute;mico</h3>
+        <div class="detail__breakdown">
+          <div
+            v-for="line in economicBreakdown"
+            :key="line.label"
+            class="detail__breakdown-row"
+            :class="{ 'detail__breakdown-row--total': line.isTotal }"
+          >
+            <span class="detail__breakdown-label">{{ line.label }}</span>
+            <span class="detail__breakdown-value">{{ line.value }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Datos importados -->
+      <!-- Payment status (from _detail) -->
+      <div v-if="hasDetail && payments.length > 0" class="card detail__section">
+        <h3 class="detail__section-title">Estado de pagos</h3>
+        <div class="detail__payments">
+          <div v-for="(payment, idx) in payments" :key="idx" class="detail__payment-row">
+            <div class="detail__field">
+              <span class="detail__label">Monto</span>
+              <span class="detail__value">{{ payment.amount }}</span>
+            </div>
+            <div class="detail__field">
+              <span class="detail__label">Moneda</span>
+              <span class="detail__value">{{ payment.currency }}</span>
+            </div>
+            <div class="detail__field">
+              <span class="detail__label">Estado</span>
+              <span class="detail__value">
+                <span class="badge" :class="payment.status === 'Pagado' ? 'badge--success' : 'badge--warning'">
+                  {{ payment.status }}
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No detail data message -->
+      <div v-if="!hasDetail" class="card detail__section detail__no-detail">
+        <p class="detail__no-detail-text">
+          No se encontraron datos detallados de Avantio para esta reserva.
+        </p>
+        <p class="detail__no-detail-hint">Importar detalle desde Avantio</p>
+      </div>
+
+      <!-- Datos importados (raw, excluding _detail) -->
       <div v-if="rawDataEntries.length > 0" class="card detail__section">
         <h3 class="detail__section-title">Datos importados</h3>
         <div class="detail__raw-data">
@@ -258,6 +395,93 @@ onMounted(fetchBooking)
   font-size: 1.1rem;
 }
 
+/* Economic breakdown */
+.detail__breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: 400px;
+}
+
+.detail__breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.detail__breakdown-row:last-child {
+  border-bottom: none;
+}
+
+.detail__breakdown-row--total {
+  background: var(--color-background-soft);
+  border-radius: var(--radius-sm);
+  border-bottom: none;
+  margin-top: 4px;
+}
+
+.detail__breakdown-label {
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+.detail__breakdown-row--total .detail__breakdown-label {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.detail__breakdown-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.detail__breakdown-row--total .detail__breakdown-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Payment rows */
+.detail__payments {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail__payment-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--color-background-soft);
+  border-radius: var(--radius-md);
+}
+
+/* No detail data */
+.detail__no-detail {
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.detail__no-detail-text {
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.detail__no-detail-hint {
+  color: var(--color-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.detail__no-detail-hint:hover {
+  color: var(--color-primary-light);
+}
+
+/* Raw data */
 .detail__raw-data {
   display: flex;
   flex-direction: column;

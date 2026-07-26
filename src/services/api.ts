@@ -62,6 +62,7 @@ export interface Property {
   type: string | null
   location: string | null
   is_active: boolean
+  raw_data: Record<string, unknown> | null
 }
 
 export interface PropertiesResponse {
