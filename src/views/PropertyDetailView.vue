@@ -209,7 +209,7 @@ async function updateFromAvantio() {
       }
     }
     updateMessage.value = 'Importando detalle de propiedad...'
-    await importerApi.importDetail(sessionId, 'properties')
+    await importerApi.importDetail(sessionId, 'properties', property.value?.avantio_id || undefined)
     updateMessage.value = 'Actualizado correctamente'
     await fetchData()
     setTimeout(() => { updateMessage.value = null }, 3000)

@@ -166,7 +166,7 @@ async function updateFromAvantio() {
       }
     }
     updateMessage.value = 'Importando detalle de reserva...'
-    await importerApi.importDetail(sessionId, 'bookings')
+    await importerApi.importDetail(sessionId, 'bookings', booking.value?.avantio_id || undefined)
     updateMessage.value = 'Actualizado correctamente'
     await fetchBooking()
     setTimeout(() => { updateMessage.value = null }, 3000)
