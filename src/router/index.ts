@@ -25,6 +25,16 @@ const router = createRouter({
       component: () => import('../views/BookingsView.vue'),
     },
     {
+      path: '/propiedades/:id',
+      name: 'propiedad-detalle',
+      component: () => import('../views/PropertyDetailView.vue'),
+    },
+    {
+      path: '/reservas/:id',
+      name: 'reserva-detalle',
+      component: () => import('../views/BookingDetailView.vue'),
+    },
+    {
       path: '/costes',
       name: 'costes',
       component: () => import('../views/CostsView.vue'),

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { laravelApi, type Property } from '@/services/api'
+import ImportWidget from '@/components/ImportWidget.vue'
 
 const properties = ref<Property[]>([])
 const totalCount = ref(0)
@@ -38,6 +39,7 @@ onMounted(fetchProperties)
 
 <template>
   <div class="properties">
+    <ImportWidget entity="properties" @imported="fetchProperties" />
     <div class="properties__header">
       <div>
         <h2 class="properties__heading">Propiedades</h2>
@@ -91,7 +93,9 @@ onMounted(fetchProperties)
         <tbody>
           <tr v-for="property in filteredProperties" :key="property.id">
             <td>
-              <strong>{{ property.name }}</strong>
+              <RouterLink :to="`/propiedades/${property.id}`">
+                <strong>{{ property.name }}</strong>
+              </RouterLink>
             </td>
             <td>
               <code>{{ property.avantio_id || '--' }}</code>
