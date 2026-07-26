@@ -60,8 +60,12 @@ export const importerApi = {
   importDetail(
     sessionId: string,
     entity: string,
+    avantioId?: string,
   ): Promise<{ entity: string; detail: Record<string, unknown> | null; status: string }> {
-    return request(`${IMPORTER_URL}/import/${sessionId}/detail/${entity}`, { method: 'POST' })
+    return request(`${IMPORTER_URL}/import/${sessionId}/detail/${entity}`, {
+      method: 'POST',
+      body: avantioId ? JSON.stringify({ avantio_id: avantioId }) : undefined,
+    })
   },
 }
 
