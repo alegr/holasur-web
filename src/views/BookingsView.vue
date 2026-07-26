@@ -1,22 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-
-interface Booking {
-  id: number
-  avantio_id: string | null
-  avantio_reference: string | null
-  check_in: string | null
-  check_out: string | null
-  nights: number | null
-  adults: number | null
-  children: number | null
-  status: string | null
-  channel: string | null
-  total_amount: string | null
-  currency: string | null
-  is_revenue: boolean
-  property: { id: number; name: string } | null
-}
+import { laravelApi, type Booking } from '@/services/api'
+import ImportWidget from '@/components/ImportWidget.vue'
 
 const bookings = ref<Booking[]>([])
 const loading = ref(true)
@@ -72,10 +57,8 @@ async function fetchBookings() {
   loading.value = true
   error.value = null
   try {
-    const res = await fetch('http://localhost:8001/api/bookings')
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    bookings.value = data.data || []
+    const result = await laravelApi.getBookings()
+    bookings.value = result.data || []
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Error al cargar reservas'
   } finally {
@@ -88,6 +71,7 @@ onMounted(fetchBookings)
 
 <template>
   <div class="bookings">
+    <ImportWidget entity="bookings" @imported="fetchBookings" />
     <div class="bookings__header">
       <div>
         <h2 class="bookings__heading">Reservas</h2>
@@ -144,7 +128,9 @@ onMounted(fetchBookings)
               <strong>{{ booking.property?.name || '--' }}</strong>
             </td>
             <td>
-              <code>{{ booking.avantio_reference || booking.avantio_id || '--' }}</code>
+              <RouterLink :to="`/reservas/${booking.id}`">
+                <code>{{ booking.avantio_reference || booking.avantio_id || '--' }}</code>
+              </RouterLink>
             </td>
             <td>{{ formatDate(booking.check_in) }}</td>
             <td>{{ formatDate(booking.check_out) }}</td>

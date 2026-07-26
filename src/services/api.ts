@@ -43,6 +43,12 @@ export const importerApi = {
     return request<{ message: string }>(`${IMPORTER_URL}/import/${sessionId}/run`, { method: 'POST' })
   },
 
+  importEntity(sessionId: string, entity: string): Promise<{ message: string }> {
+    return request<{ message: string }>(`${IMPORTER_URL}/import/${sessionId}/import/${entity}`, {
+      method: 'POST',
+    })
+  },
+
   stopImport(sessionId: string): Promise<{ message: string }> {
     return request<{ message: string }>(`${IMPORTER_URL}/import/${sessionId}/stop`, { method: 'POST' })
   },
@@ -60,6 +66,30 @@ export interface Property {
 
 export interface PropertiesResponse {
   data: Property[]
+  total: number
+}
+
+export interface Booking {
+  id: number
+  avantio_id: string | null
+  avantio_reference: string | null
+  check_in: string | null
+  check_out: string | null
+  nights: number | null
+  adults: number | null
+  children: number | null
+  status: string | null
+  channel: string | null
+  total_amount: string | null
+  currency: string | null
+  is_revenue: boolean
+  property_id: number | null
+  property: { id: number; name: string } | null
+  raw_data: Record<string, unknown> | null
+}
+
+export interface BookingsResponse {
+  data: Booking[]
   total: number
 }
 
@@ -187,6 +217,21 @@ export const laravelApi = {
     if (search) params.set('search', search)
     const query = params.toString()
     return request<PropertiesResponse>(`${API_URL}/properties${query ? `?${query}` : ''}`)
+  },
+
+  getProperty(id: number): Promise<Property> {
+    return request<Property>(`${API_URL}/properties/${id}`)
+  },
+
+  getBookings(search?: string): Promise<BookingsResponse> {
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    const query = params.toString()
+    return request<BookingsResponse>(`${API_URL}/bookings${query ? `?${query}` : ''}`)
+  },
+
+  getBooking(id: number): Promise<Booking> {
+    return request<Booking>(`${API_URL}/bookings/${id}`)
   },
 
   getImportLogs(): Promise<{ data: ImportLog[] }> {
