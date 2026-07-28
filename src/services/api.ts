@@ -300,6 +300,59 @@ export const laravelApi = {
       body: JSON.stringify(payload),
     })
   },
+
+  getPayments(params?: {
+    payment_type?: string
+    from?: string
+    to?: string
+    property_code?: string
+    search?: string
+  }): Promise<PaymentsResponse> {
+    const urlParams = new URLSearchParams()
+    if (params?.payment_type) urlParams.set('payment_type', params.payment_type)
+    if (params?.from) urlParams.set('from', params.from)
+    if (params?.to) urlParams.set('to', params.to)
+    if (params?.property_code) urlParams.set('property_code', params.property_code)
+    if (params?.search) urlParams.set('search', params.search)
+    const query = urlParams.toString()
+    return request<PaymentsResponse>(`${API_URL}/avantio-payments${query ? `?${query}` : ''}`)
+  },
+
+  getPaymentsSummary(from?: string, to?: string): Promise<PaymentSummary[]> {
+    const urlParams = new URLSearchParams()
+    if (from) urlParams.set('from', from)
+    if (to) urlParams.set('to', to)
+    const query = urlParams.toString()
+    return request<PaymentSummary[]>(`${API_URL}/avantio-payments/summary${query ? `?${query}` : ''}`)
+  },
+}
+
+// Payment types
+export interface AvantioPayment {
+  id: number
+  payment_type: string
+  date: string
+  booking_reference: string | null
+  property_code: string | null
+  description: string | null
+  counterpart: string | null
+  payment_method: string | null
+  amount: string
+  currency: string
+  state: string | null
+  portal: string | null
+  observations: string | null
+}
+
+export interface PaymentSummary {
+  payment_type: string
+  count: number
+  total: number
+}
+
+export interface PaymentsResponse {
+  data: AvantioPayment[]
+  total: number
 }
 
 // Analytics types
