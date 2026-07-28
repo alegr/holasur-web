@@ -64,6 +64,11 @@ const router = createRouter({
       name: 'propiedad-reporte',
       component: () => import('../views/PropertyReportView.vue'),
     },
+    {
+      path: '/reportes',
+      name: 'reportes',
+      component: () => import('../views/ReportsView.vue'),
+    },
   ],
 })
 
