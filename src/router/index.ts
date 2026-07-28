@@ -83,21 +83,15 @@ const router = createRouter({
   ],
 })
 
-// Track whether we've validated the token this session
-let tokenValidated = false
+router.beforeEach((to) => {
+  const isAuthenticated = localStorage.getItem('holasur_logged_in')
 
-router.beforeEach(async (to) => {
-  const token = localStorage.getItem('holasur_token')
-
-  if (!token && to.name !== 'login') {
+  if (!isAuthenticated && to.name !== 'login') {
     return { name: 'login' }
   }
 
-  if (token && to.name === 'login') {
+  if (isAuthenticated && to.name === 'login') {
     return { name: 'home' }
-  }
-
-      }
   }
 })
 
