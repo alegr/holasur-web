@@ -97,19 +97,7 @@ router.beforeEach(async (to) => {
     return { name: 'home' }
   }
 
-  // Validate token once per session on first protected route access
-  if (token && !tokenValidated && to.name !== 'login') {
-    try {
-      const user = await authApi.getUser()
-      localStorage.setItem('holasur_user', JSON.stringify(user))
-      tokenValidated = true
-    } catch {
-      // Token invalid - clear and redirect to login
-      localStorage.removeItem('holasur_token')
-      localStorage.removeItem('holasur_user')
-      tokenValidated = false
-      return { name: 'login' }
-    }
+      }
   }
 })
 

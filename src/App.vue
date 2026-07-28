@@ -13,8 +13,8 @@ async function handleLogout() {
   } catch {
     // ignore logout errors
   }
-  localStorage.removeItem('holasur_token')
-  localStorage.removeItem('holasur_user')
+  localStorage.removeItem('holasur_logged_in')
+  
   router.push('/login')
 }
 
