@@ -1,5 +1,9 @@
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
 const IMPORTER_URL = 'http://localhost:3100'
-const API_URL = 'http://localhost:8001/api'
+const API_URL = isLocalhost ? 'http://localhost:8001/api' : '/api'
+
+// Importer only available when running locally
+export const importerAvailable = isLocalhost
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('holasur_token')

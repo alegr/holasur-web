@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onUnmounted, computed } from 'vue'
-import { importerApi } from '@/services/api'
+import { importerApi, importerAvailable } from '@/services/api'
 
 const props = defineProps<{
   entity: 'properties' | 'bookings' | 'payments_received' | 'payments_made' | 'payments_pending' | 'payments_outstanding'
@@ -164,7 +164,7 @@ function retry() {
 </script>
 
 <template>
-  <div class="import-widget">
+  <div v-if="importerAvailable" class="import-widget">
     <!-- Idle -->
     <div v-if="status === 'idle'" class="import-widget__row">
       <button class="btn btn--primary btn--small" @click="startImport">
