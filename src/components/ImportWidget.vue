@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onUnmounted, computed } from 'vue'
-import { importerApi, importerAvailable } from '@/services/api'
+import { importerApi, importerAvailable, IMPORTER_URL } from '@/services/api'
+const importerUrl = IMPORTER_URL
 
 const props = defineProps<{
   entity: 'properties' | 'bookings' | 'payments_received' | 'payments_made' | 'payments_pending' | 'payments_outstanding'
@@ -21,13 +22,14 @@ const entityLabels: Record<string, string> = {
 
 const entityLabel = computed(() => entityLabels[props.entity] || props.entity)
 
-type WidgetStatus = 'idle' | 'starting' | 'waiting_for_login' | 'logged_in' | 'importing' | 'done' | 'error'
+type WidgetStatus = 'idle' | 'starting' | 'waiting_for_login' | 'needs_2fa' | 'logged_in' | 'importing' | 'done' | 'error'
 
 const status = ref<WidgetStatus>('idle')
 const sessionId = ref<string | null>(null)
 const error = ref<string | null>(null)
 const importedCount = ref<number>(0)
 const progressText = ref<string>('')
+const tfaCode = ref<string>('')
 const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
 const autoCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
@@ -55,7 +57,7 @@ async function startImport() {
   error.value = null
   try {
     // Check for an existing active session first (reuse if logged in)
-    const activeRes = await fetch('http://localhost:3100/import/active')
+    const activeRes = await fetch(`${importerUrl}/import/active`)
     const active = await activeRes.json()
     if (active.active && active.sessionId) {
       sessionId.value = active.sessionId
@@ -81,7 +83,10 @@ function startPolling() {
     if (!sessionId.value) return
     try {
       const result = await importerApi.getStatus(sessionId.value)
-      if (result.status === 'logged_in' && status.value === 'waiting_for_login') {
+      if (result.status === 'needs_2fa' && status.value !== 'needs_2fa') {
+        status.value = 'needs_2fa'
+        // Don't stop polling — we'll submit the code and keep checking
+      } else if (result.status === 'logged_in' && (status.value === 'waiting_for_login' || status.value === 'needs_2fa')) {
         stopPolling()
         status.value = 'importing'
         await runEntityImport()
@@ -157,6 +162,21 @@ async function cancel() {
   resetWidget()
 }
 
+async function submit2FA() {
+  if (!sessionId.value || !tfaCode.value) return
+  try {
+    await fetch(`${importerUrl}/import/${sessionId.value}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: tfaCode.value }),
+    })
+    tfaCode.value = ''
+    // Polling will detect logged_in status
+  } catch {
+    error.value = 'Error al enviar código'
+  }
+}
+
 function retry() {
   resetWidget()
   startImport()
@@ -179,10 +199,27 @@ function retry() {
       <span>Iniciando sesión de importación...</span>
     </div>
 
-    <!-- Waiting for login -->
+    <!-- Waiting for login (auto-login in progress) -->
     <div v-else-if="status === 'waiting_for_login'" class="import-widget__row import-widget__row--info">
       <span class="spinner spinner--small"></span>
-      <span>Abriendo Avantio... Inicia sesión en la ventana del navegador</span>
+      <span>Iniciando sesión en Avantio automáticamente...</span>
+      <a class="import-widget__cancel" @click.prevent="cancel">Cancelar</a>
+    </div>
+
+    <!-- 2FA required -->
+    <div v-else-if="status === 'needs_2fa'" class="import-widget__row import-widget__row--info" style="flex-wrap: wrap; gap: 8px;">
+      <span>Avantio requiere código de verificación:</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input
+          v-model="tfaCode"
+          type="text"
+          class="input"
+          placeholder="Código 2FA"
+          style="width: 140px; padding: 6px 10px; font-size: 0.9rem;"
+          @keyup.enter="submit2FA"
+        />
+        <button class="btn btn--primary btn--small" @click="submit2FA">Verificar</button>
+      </div>
       <a class="import-widget__cancel" @click.prevent="cancel">Cancelar</a>
     </div>
 

@@ -1,5 +1,5 @@
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-const IMPORTER_URL = isLocalhost ? 'http://localhost:3100' : `${window.location.origin}/importer`
+export const IMPORTER_URL = isLocalhost ? 'http://localhost:3100' : `${window.location.origin}/importer`
 const API_URL = isLocalhost ? 'http://localhost:8001/api' : '/api'
 
 // Importer always available (runs on server headless)
