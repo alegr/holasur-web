@@ -6,12 +6,14 @@ import {
   analyticsApi,
   importerApi,
   reportsApi,
+  operationalApi,
   type Property,
   type Booking,
   type Purchase,
   type Expense,
   type PropertyProfitability,
   type PropertyPnl,
+  type PropertyIncident,
 } from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
@@ -25,6 +27,137 @@ const expenses = ref<Expense[]>([])
 const profitability = ref<PropertyProfitability | null>(null)
 const propertyPnl = ref<PropertyPnl | null>(null)
 const pnlLoading = ref(false)
+
+// Incidents state
+const incidents = ref<PropertyIncident[]>([])
+const incidentsLoading = ref(false)
+const showNewIncidentForm = ref(false)
+const showHistory = ref(false)
+const expandedIncidentId = ref<number | null>(null)
+const resolutionText = ref('')
+
+const newIncident = ref({
+  type: 'transitory' as string,
+  title: '',
+  description: '',
+  priority: 'medium' as string,
+})
+
+const activeIncidents = computed(() =>
+  incidents.value.filter((i) => i.status !== 'resolved'),
+)
+
+const resolvedIncidents = computed(() =>
+  incidents.value.filter((i) => i.status === 'resolved'),
+)
+
+function incidentStatusLabel(status: string): string {
+  switch (status) {
+    case 'open':
+      return 'Abierta'
+    case 'in_progress':
+      return 'En proceso'
+    case 'resolved':
+      return 'Resuelta'
+    default:
+      return status
+  }
+}
+
+function incidentStatusClass(status: string): string {
+  switch (status) {
+    case 'open':
+      return 'inc__status--open'
+    case 'in_progress':
+      return 'inc__status--in-progress'
+    case 'resolved':
+      return 'inc__status--resolved'
+    default:
+      return ''
+  }
+}
+
+function incidentTypeLabel(type: string): string {
+  return type === 'permanent' ? 'Permanente' : 'Transitoria'
+}
+
+function incidentPriorityLabel(priority: string): string {
+  switch (priority) {
+    case 'low':
+      return 'Baja'
+    case 'medium':
+      return 'Media'
+    case 'high':
+      return 'Alta'
+    default:
+      return priority
+  }
+}
+
+function incidentPriorityClass(priority: string): string {
+  switch (priority) {
+    case 'low':
+      return 'inc__priority--low'
+    case 'medium':
+      return 'inc__priority--medium'
+    case 'high':
+      return 'inc__priority--high'
+    default:
+      return ''
+  }
+}
+
+async function fetchIncidents() {
+  incidentsLoading.value = true
+  try {
+    const res = await operationalApi.getPropertyIncidents({
+      property_id: propertyId.value,
+    })
+    incidents.value = res.data
+  } catch {
+    incidents.value = []
+  } finally {
+    incidentsLoading.value = false
+  }
+}
+
+async function submitNewIncident() {
+  if (!newIncident.value.title || !newIncident.value.description) return
+  try {
+    await operationalApi.createPropertyIncident({
+      property_id: propertyId.value,
+      type: newIncident.value.type,
+      title: newIncident.value.title,
+      description: newIncident.value.description,
+      priority: newIncident.value.priority,
+    })
+    newIncident.value = { type: 'transitory', title: '', description: '', priority: 'medium' }
+    showNewIncidentForm.value = false
+    await fetchIncidents()
+  } catch {
+    // ignore
+  }
+}
+
+function toggleIncident(id: number) {
+  expandedIncidentId.value = expandedIncidentId.value === id ? null : id
+  resolutionText.value = ''
+}
+
+async function updateIncidentStatus(id: number, status: string) {
+  const data: Partial<PropertyIncident> = { status }
+  if (status === 'resolved') {
+    data.resolution_notes = resolutionText.value || undefined
+  }
+  try {
+    await operationalApi.updatePropertyIncident(id, data)
+    expandedIncidentId.value = null
+    resolutionText.value = ''
+    await fetchIncidents()
+  } catch {
+    // ignore
+  }
+}
 
 const today = new Date()
 const firstOfYear = new Date(today.getFullYear(), 0, 1)
@@ -205,6 +338,9 @@ async function fetchData() {
     } catch {
       profitability.value = null
     }
+
+    // Fetch incidents
+    fetchIncidents()
 
     // Fetch P&L report
     fetchPnl()
@@ -399,6 +535,136 @@ onMounted(fetchData)
         <div class="detail__notes">
           {{ detail['_t_Internal Notes'] }}
         </div>
+      </div>
+
+      <!-- Incidencias (HS-47) -->
+      <div class="card detail__section">
+        <div class="inc__header">
+          <h3 class="detail__section-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Incidencias</h3>
+          <button
+            v-if="!showNewIncidentForm"
+            class="btn btn--primary btn--small"
+            @click="showNewIncidentForm = true"
+          >+ Nueva incidencia</button>
+        </div>
+
+        <div v-if="incidentsLoading" class="detail__empty">
+          <span class="spinner spinner--small"></span> Cargando...
+        </div>
+
+        <template v-else>
+          <!-- New incident form -->
+          <div v-if="showNewIncidentForm" class="inc__form">
+            <div class="inc__form-row">
+              <div class="inc__form-field">
+                <label class="op__field-label">Tipo</label>
+                <select v-model="newIncident.type" class="input">
+                  <option value="permanent">Permanente</option>
+                  <option value="transitory">Transitoria</option>
+                </select>
+              </div>
+              <div class="inc__form-field">
+                <label class="op__field-label">Prioridad</label>
+                <select v-model="newIncident.priority" class="input">
+                  <option value="low">Baja</option>
+                  <option value="medium">Media</option>
+                  <option value="high">Alta</option>
+                </select>
+              </div>
+            </div>
+            <div class="inc__form-field">
+              <label class="op__field-label">Titulo</label>
+              <input v-model="newIncident.title" type="text" class="input" placeholder="Titulo de la incidencia" />
+            </div>
+            <div class="inc__form-field">
+              <label class="op__field-label">Descripcion</label>
+              <textarea v-model="newIncident.description" class="input" rows="3" placeholder="Descripcion detallada..."></textarea>
+            </div>
+            <div class="inc__form-actions">
+              <button class="btn btn--primary btn--small" @click="submitNewIncident" :disabled="!newIncident.title || !newIncident.description">Guardar</button>
+              <button class="btn btn--secondary btn--small" @click="showNewIncidentForm = false">Cancelar</button>
+            </div>
+          </div>
+
+          <!-- Active incidents list -->
+          <div v-if="activeIncidents.length === 0 && !showNewIncidentForm" class="detail__empty">
+            No hay incidencias activas para esta propiedad.
+          </div>
+
+          <div v-else class="inc__list">
+            <div
+              v-for="incident in activeIncidents"
+              :key="incident.id"
+              class="inc__card"
+              :class="incidentPriorityClass(incident.priority)"
+            >
+              <div class="inc__card-header" @click="toggleIncident(incident.id)">
+                <div class="inc__card-info">
+                  <span class="inc__title">{{ incident.title }}</span>
+                  <div class="inc__badges">
+                    <span class="inc__badge inc__badge--type">{{ incidentTypeLabel(incident.type) }}</span>
+                    <span class="inc__badge" :class="incidentStatusClass(incident.status)">{{ incidentStatusLabel(incident.status) }}</span>
+                    <span class="inc__badge" :class="incidentPriorityClass(incident.priority)">{{ incidentPriorityLabel(incident.priority) }}</span>
+                  </div>
+                </div>
+                <span class="inc__expand">{{ expandedIncidentId === incident.id ? '&#9650;' : '&#9660;' }}</span>
+              </div>
+
+              <div v-if="expandedIncidentId === incident.id" class="inc__card-body">
+                <p class="inc__description">{{ incident.description }}</p>
+                <div v-if="incident.reported_by" class="inc__meta">
+                  <span>Reportado por: {{ incident.reported_by }}</span>
+                </div>
+                <div class="inc__card-actions">
+                  <div v-if="incident.status === 'open'">
+                    <button class="btn btn--secondary btn--small" @click="updateIncidentStatus(incident.id, 'in_progress')">Marcar en proceso</button>
+                  </div>
+                  <div v-if="incident.status !== 'resolved'" class="inc__resolve-section">
+                    <textarea
+                      v-model="resolutionText"
+                      class="input inc__resolve-textarea"
+                      rows="2"
+                      placeholder="Notas de resolucion (opcional)..."
+                    ></textarea>
+                    <button class="btn btn--primary btn--small" @click="updateIncidentStatus(incident.id, 'resolved')">Resolver</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- History (resolved) -->
+          <div v-if="resolvedIncidents.length > 0" class="inc__history">
+            <button class="inc__history-toggle" @click="showHistory = !showHistory">
+              {{ showHistory ? '&#9660;' : '&#9654;' }} Historial ({{ resolvedIncidents.length }})
+            </button>
+            <div v-if="showHistory" class="inc__list">
+              <div
+                v-for="incident in resolvedIncidents"
+                :key="incident.id"
+                class="inc__card inc__card--resolved"
+                :class="incidentPriorityClass(incident.priority)"
+              >
+                <div class="inc__card-header" @click="toggleIncident(incident.id)">
+                  <div class="inc__card-info">
+                    <span class="inc__title">{{ incident.title }}</span>
+                    <div class="inc__badges">
+                      <span class="inc__badge inc__badge--type">{{ incidentTypeLabel(incident.type) }}</span>
+                      <span class="inc__badge inc__status--resolved">{{ incidentStatusLabel(incident.status) }}</span>
+                    </div>
+                  </div>
+                  <span class="inc__expand">{{ expandedIncidentId === incident.id ? '&#9650;' : '&#9660;' }}</span>
+                </div>
+                <div v-if="expandedIncidentId === incident.id" class="inc__card-body">
+                  <p class="inc__description">{{ incident.description }}</p>
+                  <div v-if="incident.resolution_notes" class="inc__resolution">
+                    <strong>Resolucion:</strong> {{ incident.resolution_notes }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- No detail data message -->
@@ -1131,5 +1397,222 @@ code {
   .pnl__bar-row {
     grid-template-columns: 100px 1fr 80px;
   }
+}
+
+/* Incident styles */
+.inc__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inc__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-background-soft);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.inc__form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.inc__form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inc__form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.op__field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.inc__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.inc__card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border-left: 4px solid var(--color-border);
+}
+
+.inc__card.inc__priority--low {
+  border-left-color: var(--color-success);
+}
+
+.inc__card.inc__priority--medium {
+  border-left-color: #f59e0b;
+}
+
+.inc__card.inc__priority--high {
+  border-left-color: var(--color-error);
+}
+
+.inc__card--resolved {
+  opacity: 0.7;
+}
+
+.inc__card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.inc__card-header:hover {
+  background: var(--color-background-soft);
+}
+
+.inc__card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inc__title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.inc__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.inc__badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  display: inline-block;
+}
+
+.inc__badge--type {
+  background: var(--color-background-mute);
+  color: var(--color-text-secondary);
+}
+
+.inc__status--open {
+  background: #fff8e1;
+  color: #d97706;
+}
+
+.inc__status--in-progress {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.inc__status--resolved {
+  background: #e4f3ed;
+  color: var(--color-success);
+}
+
+.inc__priority--low {
+  background: #e4f3ed;
+  color: var(--color-success);
+}
+
+.inc__priority--medium {
+  background: #fff8e1;
+  color: #d97706;
+}
+
+.inc__priority--high {
+  background: #fde8e8;
+  color: var(--color-error);
+}
+
+.inc__expand {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.inc__card-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.inc__description {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+
+.inc__meta {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 12px;
+}
+
+.inc__card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inc__resolve-section {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.inc__resolve-textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 40px;
+}
+
+.inc__resolution {
+  font-size: 0.85rem;
+  padding: 10px 12px;
+  background: #e4f3ed;
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+}
+
+.inc__history {
+  margin-top: 8px;
+}
+
+.inc__history-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  padding: 8px 0;
+}
+
+.inc__history-toggle:hover {
+  color: var(--color-primary);
 }
 </style>

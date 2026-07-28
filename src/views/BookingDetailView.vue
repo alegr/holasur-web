@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { laravelApi, importerApi, reportsApi, type Booking, type BookingPnl } from '@/services/api'
+import {
+  laravelApi,
+  importerApi,
+  reportsApi,
+  operationalApi,
+  type Booking,
+  type BookingPnl,
+  type BookingOperation,
+} from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
 const route = useRoute()
@@ -14,6 +22,126 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const updating = ref(false)
 const updateMessage = ref<string | null>(null)
+
+// Operative record state
+const operation = ref<BookingOperation | null>(null)
+const operationLoading = ref(false)
+const operationSaving = ref(false)
+let saveTimeout: ReturnType<typeof setTimeout> | null = null
+
+const opStatuses: string[] = ['pre_reserva', 'confirmada', 'en_curso', 'cerrada', 'cancelada']
+const opStatusLabels: Record<string, string> = {
+  pre_reserva: 'Pre-reserva',
+  confirmada: 'Confirmada',
+  en_curso: 'En curso',
+  cerrada: 'Cerrada',
+  cancelada: 'Cancelada',
+}
+
+const incidentTypes = [
+  { value: 'limpieza', label: 'Limpieza' },
+  { value: 'mantenimiento', label: 'Mantenimiento' },
+  { value: 'huesped', label: 'Huesped' },
+  { value: 'cobro', label: 'Cobro' },
+  { value: 'otro', label: 'Otro' },
+]
+
+const incidentLevels = [
+  { value: 'bajo', label: 'Bajo' },
+  { value: 'medio', label: 'Medio' },
+  { value: 'alto', label: 'Alto' },
+]
+
+const checklistItems = [
+  { key: 'cleaning_coordinated', label: 'Limpieza coordinada', field: true },
+  { key: 'requires_maintenance', label: 'Requiere mantenimiento', field: true },
+  { key: 'pending_followup', label: 'Seguimiento pendiente', field: true },
+  { key: 'dni_received', label: 'DNI recibido', field: false },
+  { key: 'receipt_sent', label: 'Comprobante enviado', field: false },
+  { key: 'contract_sent', label: 'Contrato enviado', field: false },
+  { key: 'guarantee_received', label: 'Garantia recibida', field: false },
+  { key: 'operation_closed', label: 'Operacion cerrada', field: false },
+]
+
+function getChecklistValue(item: { key: string; field: boolean }): boolean {
+  if (!operation.value) return false
+  if (item.field) {
+    return (operation.value as Record<string, unknown>)[item.key] as boolean
+  }
+  return operation.value.checklist?.[item.key] === true
+}
+
+function toggleChecklist(item: { key: string; field: boolean }) {
+  if (!operation.value) return
+  const current = getChecklistValue(item)
+  if (item.field) {
+    ;(operation.value as Record<string, unknown>)[item.key] = !current
+  } else {
+    if (!operation.value.checklist) operation.value.checklist = {}
+    operation.value.checklist[item.key] = !current
+  }
+  debouncedSaveOperation()
+}
+
+function setOperationStatus(status: string) {
+  if (!operation.value) return
+  operation.value.status = status
+  debouncedSaveOperation()
+}
+
+function debouncedSaveOperation() {
+  if (saveTimeout) clearTimeout(saveTimeout)
+  saveTimeout = setTimeout(() => saveOperation(), 800)
+}
+
+async function saveOperation() {
+  if (!operation.value) return
+  operationSaving.value = true
+  try {
+    const res = await operationalApi.updateBookingOperation(bookingId.value, {
+      status: operation.value.status,
+      responsible: operation.value.responsible,
+      commercial_notes: operation.value.commercial_notes,
+      operational_notes: operation.value.operational_notes,
+      checklist: operation.value.checklist,
+      incident_type: operation.value.incident_type,
+      incident_level: operation.value.incident_level,
+      cleaning_coordinated: operation.value.cleaning_coordinated,
+      requires_maintenance: operation.value.requires_maintenance,
+      pending_followup: operation.value.pending_followup,
+      documentation: operation.value.documentation,
+    })
+    operation.value = res.data
+  } catch {
+    // silent fail on auto-save
+  } finally {
+    operationSaving.value = false
+  }
+}
+
+async function fetchOperation() {
+  operationLoading.value = true
+  try {
+    const res = await operationalApi.getBookingOperation(bookingId.value)
+    operation.value = res.data
+  } catch {
+    operation.value = null
+  } finally {
+    operationLoading.value = false
+  }
+}
+
+async function createOperation() {
+  operationLoading.value = true
+  try {
+    const res = await operationalApi.createBookingOperation(bookingId.value)
+    operation.value = res.data
+  } catch {
+    // ignore
+  } finally {
+    operationLoading.value = false
+  }
+}
 
 function formatDate(d: string | null): string {
   if (!d) return '--'
@@ -154,6 +282,7 @@ async function fetchBooking() {
   try {
     booking.value = await laravelApi.getBooking(bookingId.value)
     fetchPnl()
+    fetchOperation()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Error al cargar reserva'
   } finally {
@@ -406,6 +535,131 @@ onMounted(fetchBooking)
         </div>
         <div v-else class="detail__empty">
           No hay datos de estado de resultados disponibles.
+        </div>
+      </div>
+
+      <!-- Registro operativo (HS-46) -->
+      <div class="card detail__section">
+        <div class="op__header">
+          <h3 class="detail__section-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Registro operativo</h3>
+          <span v-if="operationSaving" class="op__saving">Guardando...</span>
+          <span v-if="operation" class="op__id">{{ operation.operation_id }}</span>
+        </div>
+
+        <div v-if="operationLoading" class="detail__empty">
+          <span class="spinner spinner--small"></span> Cargando...
+        </div>
+
+        <div v-else-if="!operation" class="op__empty">
+          <p>No hay registro operativo para esta reserva.</p>
+          <button class="btn btn--primary btn--small" @click="createOperation">Crear registro operativo</button>
+        </div>
+
+        <div v-else class="op__content">
+          <!-- Status stepper -->
+          <div class="op__stepper">
+            <div
+              v-for="(s, idx) in opStatuses.filter(st => st !== 'cancelada')"
+              :key="s"
+              class="op__step"
+              :class="{
+                'op__step--active': operation.status === s,
+                'op__step--done': opStatuses.indexOf(operation.status) > idx && operation.status !== 'cancelada',
+              }"
+              @click="setOperationStatus(s)"
+            >
+              <div class="op__step-dot">
+                <span v-if="opStatuses.indexOf(operation.status) > idx && operation.status !== 'cancelada'">&#10003;</span>
+                <span v-else>{{ idx + 1 }}</span>
+              </div>
+              <span class="op__step-label">{{ opStatusLabels[s] }}</span>
+              <div v-if="idx < 3" class="op__step-line" :class="{ 'op__step-line--done': opStatuses.indexOf(operation.status) > idx }"></div>
+            </div>
+          </div>
+          <div v-if="operation.status !== 'cancelada'" class="op__cancel-row">
+            <button class="btn btn--secondary btn--small op__cancel-btn" @click="setOperationStatus('cancelada')">Cancelar reserva</button>
+          </div>
+          <div v-else class="op__cancelled-badge">
+            <span class="badge badge--error">Cancelada</span>
+            <button class="btn btn--secondary btn--small" @click="setOperationStatus('pre_reserva')">Reactivar</button>
+          </div>
+
+          <!-- Responsable -->
+          <div class="op__field-row">
+            <label class="op__field-label">Responsable</label>
+            <input
+              v-model="operation.responsible"
+              type="text"
+              class="input op__input"
+              placeholder="Nombre del responsable"
+              @input="debouncedSaveOperation()"
+            />
+          </div>
+
+          <!-- Observaciones comerciales -->
+          <div class="op__field-row">
+            <label class="op__field-label">Observaciones comerciales</label>
+            <textarea
+              v-model="operation.commercial_notes"
+              class="input op__textarea"
+              rows="2"
+              placeholder="Notas comerciales..."
+              @input="debouncedSaveOperation()"
+            ></textarea>
+          </div>
+
+          <!-- Observaciones operativas -->
+          <div class="op__field-row">
+            <label class="op__field-label">Observaciones operativas</label>
+            <textarea
+              v-model="operation.operational_notes"
+              class="input op__textarea"
+              rows="2"
+              placeholder="Notas operativas..."
+              @input="debouncedSaveOperation()"
+            ></textarea>
+          </div>
+
+          <!-- Checklist -->
+          <div class="op__checklist">
+            <label class="op__field-label">Checklist</label>
+            <div class="op__checklist-grid">
+              <div
+                v-for="item in checklistItems"
+                :key="item.key"
+                class="op__check-item"
+                @click="toggleChecklist(item)"
+              >
+                <span class="op__checkbox" :class="{ 'op__checkbox--checked': getChecklistValue(item) }">
+                  <span v-if="getChecklistValue(item)">&#10003;</span>
+                </span>
+                <span class="op__check-label">{{ item.label }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Incidencia -->
+          <div class="op__incident">
+            <label class="op__field-label">Incidencia</label>
+            <div class="op__incident-row">
+              <select v-model="operation.incident_type" class="input op__select" @change="debouncedSaveOperation()">
+                <option :value="null">Sin incidencia</option>
+                <option v-for="t in incidentTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+              </select>
+              <div class="op__level-group">
+                <button
+                  v-for="l in incidentLevels"
+                  :key="l.value"
+                  class="op__level-btn"
+                  :class="{
+                    'op__level-btn--active': operation.incident_level === l.value,
+                    ['op__level-btn--' + l.value]: true,
+                  }"
+                  @click="operation.incident_level = l.value; debouncedSaveOperation()"
+                >{{ l.label }}</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -743,5 +997,258 @@ code {
 
 .pnl__amount--negative {
   color: var(--color-error);
+}
+
+/* Operative record styles */
+.op__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.op__saving {
+  font-size: 0.8rem;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.op__id {
+  font-size: 0.8rem;
+  font-family: monospace;
+  color: var(--color-text-secondary);
+  background: var(--color-background-mute);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.op__empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--color-text-secondary);
+}
+
+.op__empty p {
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.op__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Stepper */
+.op__stepper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding: 8px 0;
+}
+
+.op__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  flex: 1;
+  cursor: pointer;
+}
+
+.op__step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-background);
+  z-index: 1;
+  transition: all 0.2s;
+}
+
+.op__step--active .op__step-dot {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.op__step--done .op__step-dot {
+  border-color: var(--color-primary);
+  background: #e4f3ed;
+  color: var(--color-primary);
+}
+
+.op__step-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.op__step--active .op__step-label {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.op__step-line {
+  position: absolute;
+  top: 16px;
+  left: calc(50% + 16px);
+  right: calc(-50% + 16px);
+  height: 2px;
+  background: var(--color-border);
+}
+
+.op__step-line--done {
+  background: var(--color-primary);
+}
+
+.op__cancel-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.op__cancel-btn {
+  color: var(--color-error);
+  border-color: var(--color-error);
+  font-size: 0.8rem;
+}
+
+.op__cancelled-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Fields */
+.op__field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.op__field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.op__input {
+  max-width: 400px;
+}
+
+.op__textarea {
+  resize: vertical;
+  min-height: 48px;
+}
+
+/* Checklist */
+.op__checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.op__check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.op__check-item:hover {
+  background: var(--color-background-soft);
+}
+
+.op__checkbox {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.op__checkbox--checked {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.op__check-label {
+  font-size: 0.9rem;
+}
+
+/* Incident */
+.op__incident-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.op__select {
+  max-width: 200px;
+}
+
+.op__level-group {
+  display: flex;
+  gap: 4px;
+}
+
+.op__level-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--color-background);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.op__level-btn--active.op__level-btn--bajo {
+  background: #e4f3ed;
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.op__level-btn--active.op__level-btn--medio {
+  background: #fff8e1;
+  border-color: #f59e0b;
+  color: #d97706;
+}
+
+.op__level-btn--active.op__level-btn--alto {
+  background: #fde8e8;
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+@media (max-width: 768px) {
+  .op__checklist-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

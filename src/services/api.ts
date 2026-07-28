@@ -429,6 +429,107 @@ export const laravelApi = {
   },
 }
 
+// Operational types
+export interface BookingOperation {
+  id: number
+  booking_id: number
+  operation_id: string
+  status: string
+  responsible: string | null
+  commercial_notes: string | null
+  operational_notes: string | null
+  checklist: Record<string, boolean>
+  incident_type: string | null
+  incident_level: string | null
+  cleaning_coordinated: boolean
+  requires_maintenance: boolean
+  pending_followup: boolean
+  documentation: Record<string, boolean>
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PropertyIncident {
+  id: number
+  property_id: number
+  type: string
+  title: string
+  description: string
+  reported_by: string | null
+  status: string
+  priority: string
+  resolved_at: string | null
+  resolution_notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const operationalApi = {
+  getBookingOperation(bookingId: number): Promise<{ data: BookingOperation | null }> {
+    return request<{ data: BookingOperation | null }>(`${API_URL}/booking-operations/${bookingId}`)
+  },
+
+  createBookingOperation(
+    bookingId: number,
+    data: Partial<BookingOperation> = {},
+  ): Promise<{ data: BookingOperation }> {
+    return request<{ data: BookingOperation }>(`${API_URL}/booking-operations/${bookingId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  updateBookingOperation(
+    bookingId: number,
+    data: Partial<BookingOperation>,
+  ): Promise<{ data: BookingOperation }> {
+    return request<{ data: BookingOperation }>(`${API_URL}/booking-operations/${bookingId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  getPropertyIncidents(params: {
+    property_id?: number
+    status?: string
+    type?: string
+  }): Promise<{ data: PropertyIncident[] }> {
+    const urlParams = new URLSearchParams()
+    if (params.property_id) urlParams.set('property_id', String(params.property_id))
+    if (params.status) urlParams.set('status', params.status)
+    if (params.type) urlParams.set('type', params.type)
+    const query = urlParams.toString()
+    return request<{ data: PropertyIncident[] }>(
+      `${API_URL}/property-incidents${query ? `?${query}` : ''}`,
+    )
+  },
+
+  createPropertyIncident(data: {
+    property_id: number
+    type: string
+    title: string
+    description: string
+    reported_by?: string
+    priority?: string
+  }): Promise<{ data: PropertyIncident }> {
+    return request<{ data: PropertyIncident }>(`${API_URL}/property-incidents`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  updatePropertyIncident(
+    id: number,
+    data: Partial<PropertyIncident>,
+  ): Promise<{ data: PropertyIncident }> {
+    return request<{ data: PropertyIncident }>(`${API_URL}/property-incidents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
 // Payment types
 export interface AvantioPayment {
   id: number
@@ -467,6 +568,17 @@ export interface AnalyticsKpis {
   avg_occupancy: number
   avg_nightly_rate: number
   top_channel: string
+  // Enhanced KPIs (HS-45)
+  avg_stay: number
+  revenue_per_property: number
+  gross_margin: number
+  gross_margin_percent: number
+  net_margin_percent: number
+  avg_commission_rate: number
+  total_commission: number
+  top_property: { id: number; name: string; revenue: number } | null
+  collection_efficiency: number
+  avg_days_to_collect: number
 }
 
 export interface RevenueByChannel {
@@ -521,6 +633,91 @@ export interface CashFlowItem {
 export interface CashFlow {
   upcoming_income: CashFlowItem[]
   upcoming_expenses: CashFlowItem[]
+}
+
+// Enhanced cashflow (HS-44)
+export interface CashFlowMonthly {
+  month: string
+  is_future: boolean
+  income_received: number
+  payments_made: number
+  net_flow: number
+  running_balance: number
+  projected_income: number
+}
+
+export interface EnhancedCashFlow {
+  months: number
+  monthly: CashFlowMonthly[]
+}
+
+// Enhanced channel analysis (HS-42)
+export interface ChannelAnalysis {
+  channel: string
+  bookings_count: number
+  total_revenue: number
+  total_commission: number
+  total_costs: number
+  net_revenue: number
+  avg_booking_value: number
+  avg_nights: number
+  market_share_percent: number
+}
+
+// Payment methods analysis (HS-43)
+export interface PaymentMethodItem {
+  payment_method: string
+  count: number
+  total_amount: number
+  avg_amount: number
+  percentage_of_total: number
+  percentage_of_type?: number
+}
+
+export interface PaymentMethodsAnalysis {
+  total_amount: number
+  overall: PaymentMethodItem[]
+  by_type: {
+    received: PaymentMethodItem[]
+    made: PaymentMethodItem[]
+  }
+}
+
+// Owner P&L (HS-40)
+export interface OwnerPnlProperty {
+  id: number
+  name: string
+  type: string | null
+  location: string | null
+  bookings_count: number
+  nights_sold: number
+  gross_revenue: number
+  commission: number
+  costs: number
+  gross_margin: number
+  net_margin: number
+}
+
+export interface OwnerPnl {
+  owner: {
+    id: number
+    name: string
+    email: string | null
+    phone: string | null
+  }
+  period: { from: string | null; to: string | null }
+  totals: {
+    properties_count: number
+    bookings_count: number
+    nights_sold: number
+    gross_revenue: number
+    total_commissions: number
+    total_costs: number
+    gross_margin: number
+    net_margin: number
+    margin_percent: number
+  }
+  properties: OwnerPnlProperty[]
 }
 
 export interface PropertyProfitability {
@@ -668,40 +865,82 @@ export const reportsApi = {
       `${API_URL}/reports/pnl/global${dateParams(from, to)}`,
     ).then((r) => r.data)
   },
+
+  getOwnerPnl(ownerId: number, from?: string, to?: string): Promise<OwnerPnl> {
+    return request<{ data: OwnerPnl }>(
+      `${API_URL}/reports/pnl/owner/${ownerId}${dateParams(from, to)}`,
+    ).then((r) => r.data)
+  },
 }
 
 export const analyticsApi = {
   getKpis(from?: string, to?: string): Promise<AnalyticsKpis> {
-    return request<AnalyticsKpis>(`${API_URL}/analytics/kpis${dateParams(from, to)}`)
+    return request<{ data: AnalyticsKpis }>(
+      `${API_URL}/analytics/kpis${dateParams(from, to)}`,
+    ).then((r) => r.data)
   },
 
   getRevenueByChannel(from?: string, to?: string): Promise<RevenueByChannel[]> {
-    return request<RevenueByChannel[]>(`${API_URL}/analytics/revenue/by-channel${dateParams(from, to)}`)
+    return request<{ data: RevenueByChannel[] }>(
+      `${API_URL}/analytics/revenue/by-channel${dateParams(from, to)}`,
+    ).then((r) => r.data)
   },
 
   getRevenueByMonth(year?: number): Promise<RevenueByMonth[]> {
     const params = year ? `?year=${year}` : ''
-    return request<RevenueByMonth[]>(`${API_URL}/analytics/revenue/by-month${params}`)
+    return request<{ data: RevenueByMonth[] }>(
+      `${API_URL}/analytics/revenue/by-month${params}`,
+    ).then((r) => r.data)
   },
 
   getRevenueByProperty(from?: string, to?: string): Promise<RevenueByProperty[]> {
-    return request<RevenueByProperty[]>(`${API_URL}/analytics/revenue/by-property${dateParams(from, to)}`)
+    return request<{ data: RevenueByProperty[] }>(
+      `${API_URL}/analytics/revenue/by-property${dateParams(from, to)}`,
+    ).then((r) => r.data)
   },
 
   getPropertiesRanking(from?: string, to?: string): Promise<PropertyRanking[]> {
-    return request<PropertyRanking[]>(`${API_URL}/analytics/properties/ranking${dateParams(from, to)}`)
+    return request<{ data: PropertyRanking[] }>(
+      `${API_URL}/analytics/properties/ranking${dateParams(from, to)}`,
+    ).then((r) => r.data)
   },
 
   getCostsSummary(from?: string, to?: string): Promise<CostsSummary> {
-    return request<CostsSummary>(`${API_URL}/analytics/costs/summary${dateParams(from, to)}`)
+    return request<{ data: CostsSummary }>(
+      `${API_URL}/analytics/costs/summary${dateParams(from, to)}`,
+    ).then((r) => r.data)
   },
 
-  getCashFlow(months?: number): Promise<CashFlow> {
-    const params = months ? `?months=${months}` : ''
-    return request<CashFlow>(`${API_URL}/analytics/cashflow${params}`)
+  getCashFlow(months?: number, from?: string, to?: string): Promise<EnhancedCashFlow> {
+    const params = new URLSearchParams()
+    if (months) params.set('months', String(months))
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const query = params.toString()
+    return request<{ data: EnhancedCashFlow }>(
+      `${API_URL}/analytics/cashflow${query ? `?${query}` : ''}`,
+    ).then((r) => r.data)
   },
 
-  getPropertyProfitability(id: number, from?: string, to?: string): Promise<PropertyProfitability> {
-    return request<PropertyProfitability>(`${API_URL}/analytics/property/${id}/profitability${dateParams(from, to)}`)
+  getPropertyProfitability(
+    id: number,
+    from?: string,
+    to?: string,
+  ): Promise<PropertyProfitability> {
+    return request<PropertyProfitability>(
+      `${API_URL}/analytics/property/${id}/profitability${dateParams(from, to)}`,
+    )
+  },
+
+  getChannels(from?: string, to?: string): Promise<ChannelAnalysis[]> {
+    return request<{ data: ChannelAnalysis[] }>(
+      `${API_URL}/analytics/channels${dateParams(from, to)}`,
+    ).then((r) => r.data)
+  },
+
+  getPaymentMethods(from?: string, to?: string): Promise<PaymentMethodsAnalysis> {
+    return request<{ data: PaymentMethodsAnalysis }>(
+      `${API_URL}/analytics/payment-methods${dateParams(from, to)}`,
+    ).then((r) => r.data)
   },
 }
