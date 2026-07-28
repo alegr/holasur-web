@@ -10,6 +10,11 @@ const router = createRouter({
       component: HomeView,
     },
     {
+      path: '/login',
+      name: 'login',
+      component: () => import('../views/LoginView.vue'),
+    },
+    {
       path: '/propiedades',
       name: 'propiedades',
       component: () => import('../views/PropertiesView.vue'),
@@ -60,6 +65,18 @@ const router = createRouter({
       component: () => import('../views/PropertyReportView.vue'),
     },
   ],
+})
+
+router.beforeEach((to) => {
+  const isLoggedIn = localStorage.getItem('holasur_logged_in') === 'true'
+
+  if (!isLoggedIn && to.name !== 'login') {
+    return { name: 'login' }
+  }
+
+  if (isLoggedIn && to.name === 'login') {
+    return { name: 'home' }
+  }
 })
 
 export default router
