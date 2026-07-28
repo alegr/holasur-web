@@ -78,13 +78,6 @@ function formatDate(dateStr: string): string {
       </div>
     </div>
 
-    <div class="quick-actions card">
-      <h3>Acciones rápidas</h3>
-      <div class="quick-actions__buttons">
-        <RouterLink to="/importar" class="btn btn--primary">Iniciar importación</RouterLink>
-        <RouterLink to="/propiedades" class="btn btn--secondary">Ver propiedades</RouterLink>
-      </div>
-    </div>
   </div>
 </template>
 

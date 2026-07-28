@@ -5,6 +5,7 @@ import {
   laravelApi,
   analyticsApi,
   importerApi,
+  importerAvailable,
   reportsApi,
   operationalApi,
   inventoryApi,
@@ -545,7 +546,7 @@ onMounted(fetchData)
           <span v-if="property.avantio_id" class="detail__avantio-id">
             Avantio: {{ property.avantio_id }}
           </span>
-          <button class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
+          <button v-if="importerAvailable" class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
             <span v-if="updating" class="spinner spinner--small"></span>
             {{ updating ? '' : '↻' }} Actualizar desde Avantio
           </button>

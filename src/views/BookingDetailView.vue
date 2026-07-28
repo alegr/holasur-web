@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   laravelApi,
   importerApi,
+  importerAvailable,
   reportsApi,
   operationalApi,
   type Booking,
@@ -356,7 +357,7 @@ onMounted(fetchBooking)
           <span class="badge" :class="statusClass(booking.status)">
             {{ booking.status || '--' }}
           </span>
-          <button class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
+          <button v-if="importerAvailable" class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
             <span v-if="updating" class="spinner spinner--small"></span>
             {{ updating ? '' : '↻' }} Actualizar desde Avantio
           </button>
