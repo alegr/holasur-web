@@ -795,6 +795,115 @@ onMounted(fetchData)
         </template>
       </div>
 
+      <!-- Inventario -->
+      <div class="card detail__section">
+        <div class="inv__header">
+          <h3 class="detail__section-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Inventario</h3>
+          <button
+            v-if="!showNewItemForm"
+            class="btn btn--primary btn--small"
+            @click="showNewItemForm = true"
+          >+ Agregar articulo</button>
+        </div>
+
+        <div v-if="inventoryLoading" class="detail__empty">
+          <span class="spinner spinner--small"></span> Cargando...
+        </div>
+
+        <template v-else>
+          <!-- New item form -->
+          <div v-if="showNewItemForm" class="inv__form">
+            <div class="inv__form-row">
+              <div class="inv__form-field inv__form-field--wide">
+                <label class="op__field-label">Articulo</label>
+                <input v-model="newItem.item_name" type="text" class="input" placeholder="Nombre del articulo" />
+              </div>
+              <div class="inv__form-field">
+                <label class="op__field-label">Cantidad</label>
+                <input v-model.number="newItem.quantity" type="number" class="input" min="1" />
+              </div>
+              <div class="inv__form-field">
+                <label class="op__field-label">Estado</label>
+                <select v-model="newItem.condition" class="input">
+                  <option value="good">Bueno</option>
+                  <option value="fair">Regular</option>
+                  <option value="poor">Malo</option>
+                  <option value="replaced">Reemplazado</option>
+                </select>
+              </div>
+            </div>
+            <div class="inv__form-field">
+              <label class="op__field-label">Notas</label>
+              <input v-model="newItem.notes" type="text" class="input" placeholder="Notas opcionales..." />
+            </div>
+            <div class="inv__form-actions">
+              <button class="btn btn--primary btn--small" @click="submitNewItem" :disabled="!newItem.item_name">Guardar</button>
+              <button class="btn btn--secondary btn--small" @click="showNewItemForm = false">Cancelar</button>
+            </div>
+          </div>
+
+          <!-- Items list -->
+          <div v-if="inventoryItems.length === 0 && !showNewItemForm" class="detail__empty">
+            No hay articulos en el inventario
+          </div>
+
+          <div v-if="inventoryItems.length > 0" class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Articulo</th>
+                  <th>Cantidad</th>
+                  <th>Estado</th>
+                  <th>Notas</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in inventoryItems" :key="item.id">
+                  <template v-if="editingItemId === item.id">
+                    <td>
+                      <input v-model="editItem.item_name" type="text" class="input input--compact" />
+                    </td>
+                    <td>
+                      <input v-model.number="editItem.quantity" type="number" class="input input--compact" min="1" style="width: 70px;" />
+                    </td>
+                    <td>
+                      <select v-model="editItem.condition" class="input input--compact">
+                        <option value="good">Bueno</option>
+                        <option value="fair">Regular</option>
+                        <option value="poor">Malo</option>
+                        <option value="replaced">Reemplazado</option>
+                      </select>
+                    </td>
+                    <td>
+                      <input v-model="editItem.notes" type="text" class="input input--compact" />
+                    </td>
+                    <td class="inv__actions">
+                      <button class="btn btn--primary btn--small" @click="saveEdit(item.id)">Guardar</button>
+                      <button class="btn btn--secondary btn--small" @click="cancelEditing">Cancelar</button>
+                    </td>
+                  </template>
+                  <template v-else>
+                    <td>{{ item.item_name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>
+                      <span class="inv__condition-badge" :class="conditionClass(item.condition)">
+                        {{ conditionLabel(item.condition) }}
+                      </span>
+                    </td>
+                    <td class="inv__notes">{{ item.notes || '--' }}</td>
+                    <td class="inv__actions">
+                      <button class="inv__action-btn" @click="startEditing(item)" title="Editar">&#9998;</button>
+                      <button class="inv__action-btn inv__action-btn--delete" @click="deleteInventoryItem(item.id)" title="Eliminar">&#10005;</button>
+                    </td>
+                  </template>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+
       <!-- No detail data message -->
       <div v-if="!hasDetail" class="card detail__section detail__no-detail">
         <p class="detail__no-detail-text">
@@ -1773,5 +1882,121 @@ code {
 
 .inc__history-toggle:hover {
   color: var(--color-primary);
+}
+
+/* Inventory styles */
+.inv__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inv__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-background-soft);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.inv__form-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+
+.inv__form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inv__form-field--wide {
+  grid-column: span 1;
+}
+
+.inv__form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.input--compact {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.inv__condition-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.inv__condition--good {
+  background: #e4f3ed;
+  color: var(--color-success);
+}
+
+.inv__condition--fair {
+  background: #fff8e1;
+  color: #d97706;
+}
+
+.inv__condition--poor {
+  background: #fde8e8;
+  color: var(--color-error);
+}
+
+.inv__condition--replaced {
+  background: var(--color-background-mute);
+  color: var(--color-text-secondary);
+}
+
+.inv__notes {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inv__actions {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.inv__action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  transition: all 0.15s;
+}
+
+.inv__action-btn:hover {
+  background: var(--color-background-soft);
+  color: var(--color-primary);
+}
+
+.inv__action-btn--delete:hover {
+  color: var(--color-error);
+}
+
+@media (max-width: 768px) {
+  .inv__form-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
