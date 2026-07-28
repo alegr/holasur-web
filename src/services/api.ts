@@ -183,7 +183,7 @@ export interface ImportSession {
 }
 
 export interface ImportStatus {
-  status: 'waiting_for_login' | 'logged_in' | 'importing' | 'done' | 'error'
+  status: 'waiting_for_login' | 'needs_2fa' | 'logged_in' | 'importing' | 'done' | 'error'
   importResults?: Record<string, number>
   error?: string
 }
