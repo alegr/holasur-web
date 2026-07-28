@@ -504,4 +504,44 @@ code {
     grid-template-columns: 1fr;
   }
 }
+
+@media (max-width: 768px) {
+  .payments__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .payments__heading {
+    font-size: 1.3rem;
+  }
+
+  .payments__filters {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .payments__date-filter .input {
+    width: 100%;
+  }
+
+  .payments__tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .payments__tab {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+  }
+
+  .payments__tabs-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payments__search .input {
+    min-width: 0;
+    width: 100%;
+  }
+}
 </style>

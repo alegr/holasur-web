@@ -757,12 +757,50 @@ watch([dateFrom, dateTo], fetchAll)
   }
 
   .bar-chart__row {
-    grid-template-columns: 100px 1fr 90px 50px;
+    grid-template-columns: 80px 1fr 80px 40px;
+    gap: 6px;
+  }
+
+  .bar-chart__label {
+    font-size: 0.8rem;
+  }
+
+  .bar-chart__value {
+    font-size: 0.8rem;
+  }
+
+  .bar-chart__pct {
+    font-size: 0.75rem;
+  }
+
+  .analytics__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .analytics__heading {
+    font-size: 1.3rem;
   }
 
   .analytics__filters {
     flex-direction: column;
     width: 100%;
+  }
+
+  .analytics__section {
+    margin-bottom: 16px;
+  }
+
+  .kpi-card {
+    padding: 14px;
+  }
+
+  .kpi-card__value {
+    font-size: 1.2rem;
+  }
+
+  .cashflow-chart__col {
+    min-width: 56px;
   }
 }
 </style>

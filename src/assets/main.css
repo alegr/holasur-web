@@ -192,3 +192,53 @@ table tbody tr:hover {
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(22, 70, 63, 0.1);
 }
+
+/* ── Responsive utilities ───────────────────────────────── */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  h1 {
+    font-size: 1.3rem;
+  }
+
+  h2 {
+    font-size: 1.2rem;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+  }
+
+  .card {
+    padding: 16px;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table th,
+  table td {
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  }
+
+  .btn--large {
+    padding: 10px 24px;
+    font-size: 1rem;
+  }
+
+  .input {
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
+}

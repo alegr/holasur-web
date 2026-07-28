@@ -180,4 +180,20 @@ code {
   padding: 2px 6px;
   border-radius: 4px;
 }
+
+@media (max-width: 768px) {
+  .properties__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .properties__heading {
+    font-size: 1.3rem;
+  }
+
+  .properties__search .input {
+    min-width: 0;
+    width: 100%;
+  }
+}
 </style>

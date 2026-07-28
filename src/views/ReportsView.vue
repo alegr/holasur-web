@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { reportsApi, type GlobalPnl } from '@/services/api'
+import { reportsApi, type GlobalPnl, type ProrationItem } from '@/services/api'
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -12,6 +12,20 @@ const dateFrom = ref(firstOfYear.toISOString().slice(0, 10))
 const dateTo = ref(today.toISOString().slice(0, 10))
 
 const pnl = ref<GlobalPnl | null>(null)
+
+// Proration state
+const prorationMethod = ref<string>('revenue')
+const prorationMonth = ref(today.toISOString().slice(0, 7))
+const prorationData = ref<ProrationItem[]>([])
+const prorationTotal = ref(0)
+const prorationLoading = ref(false)
+const prorationError = ref<string | null>(null)
+
+const methodLabels: Record<string, string> = {
+  revenue: 'Facturacion',
+  nights: 'Noches',
+  equal: 'Igualitario',
+}
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' }).format(value)
@@ -33,8 +47,26 @@ async function fetchData() {
   }
 }
 
-onMounted(fetchData)
+async function fetchProration() {
+  prorationLoading.value = true
+  prorationError.value = null
+  try {
+    const res = await reportsApi.getProration(prorationMonth.value, prorationMethod.value)
+    prorationData.value = res.data
+    prorationTotal.value = res.total_structural
+  } catch (e: unknown) {
+    prorationError.value = e instanceof Error ? e.message : 'Error al cargar prorrateo'
+  } finally {
+    prorationLoading.value = false
+  }
+}
+
+onMounted(() => {
+  fetchData()
+  fetchProration()
+})
 watch([dateFrom, dateTo], fetchData)
+watch([prorationMonth, prorationMethod], fetchProration)
 </script>
 
 <template>
@@ -241,6 +273,66 @@ watch([dateFrom, dateTo], fetchData)
         </table>
       </div>
     </template>
+
+    <!-- Proration Section -->
+    <div class="card reports__section">
+      <div class="proration__header">
+        <h3 class="reports__section-title">Prorrateo de costos estructurales</h3>
+        <div class="proration__controls">
+          <label class="reports__filter-label">
+            Metodo
+            <select v-model="prorationMethod" class="input">
+              <option value="revenue">Facturacion</option>
+              <option value="nights">Noches</option>
+              <option value="equal">Igualitario</option>
+            </select>
+          </label>
+          <label class="reports__filter-label">
+            Mes
+            <input type="month" v-model="prorationMonth" class="input" />
+          </label>
+        </div>
+      </div>
+
+      <div v-if="prorationLoading" class="reports__status" style="padding: 24px">
+        <span class="spinner"></span>
+        <p>Cargando prorrateo...</p>
+      </div>
+
+      <div v-else-if="prorationError" class="reports__status" style="padding: 24px">
+        <p class="reports__error-text">{{ prorationError }}</p>
+        <button class="btn btn--primary" @click="fetchProration">Reintentar</button>
+      </div>
+
+      <template v-else>
+        <p class="proration__total">
+          Total costos estructurales ({{ prorationMonth }}):
+          <strong>{{ formatCurrency(prorationTotal) }}</strong>
+          &mdash; Metodo: <strong>{{ methodLabels[prorationMethod] }}</strong>
+        </p>
+        <div v-if="prorationData.length === 0" class="reports__empty">
+          Sin propiedades activas para este mes.
+        </div>
+        <div v-else class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Propiedad</th>
+                <th>% Participacion</th>
+                <th>Monto asignado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in prorationData" :key="item.property_id">
+                <td class="proration__property">{{ item.property_name }}</td>
+                <td>{{ item.share_percent.toFixed(2) }}%</td>
+                <td>{{ formatCurrency(item.allocated_amount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -477,18 +569,78 @@ watch([dateFrom, dateTo], fetchData)
   text-align: right;
 }
 
+/* Proration */
+.proration__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.proration__controls {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.proration__total {
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 16px;
+}
+
+.proration__property {
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .pnl-summary {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
 
   .bar-chart__row {
-    grid-template-columns: 100px 1fr 90px 50px;
+    grid-template-columns: 80px 1fr 80px 40px;
+    gap: 6px;
+  }
+
+  .bar-chart__label {
+    font-size: 0.8rem;
+  }
+
+  .bar-chart__value {
+    font-size: 0.8rem;
+  }
+
+  .bar-chart__count {
+    font-size: 0.75rem;
+  }
+
+  .reports__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .reports__heading {
+    font-size: 1.3rem;
   }
 
   .reports__filters {
     flex-direction: column;
     width: 100%;
+  }
+
+  .pnl-card {
+    padding: 14px;
+  }
+
+  .pnl-card__value {
+    font-size: 1.2rem;
+  }
+
+  .reports__section {
+    margin-bottom: 16px;
   }
 }
 </style>

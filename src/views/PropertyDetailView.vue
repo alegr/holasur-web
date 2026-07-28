@@ -1390,12 +1390,43 @@ code {
 }
 
 @media (max-width: 768px) {
+  .detail__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail__heading {
+    font-size: 1.3rem;
+  }
+
+  .detail__costs-summary {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pnl__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pnl__date-filters {
+    flex-direction: column;
+    width: 100%;
+  }
+
   .pnl__summary-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .pnl__bar-row {
-    grid-template-columns: 100px 1fr 80px;
+    grid-template-columns: 80px 1fr 70px;
+  }
+
+  .inc__form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .inc__resolve-section {
+    flex-direction: column;
   }
 }
 

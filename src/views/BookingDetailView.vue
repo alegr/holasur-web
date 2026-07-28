@@ -1247,8 +1247,48 @@ code {
 }
 
 @media (max-width: 768px) {
+  .detail__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .detail__heading {
+    font-size: 1.3rem;
+  }
+
+  .detail__payment-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .detail__raw-item {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .detail__raw-key {
+    min-width: 0;
+  }
+
   .op__checklist-grid {
     grid-template-columns: 1fr;
+  }
+
+  .op__stepper {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .op__step-line {
+    display: none;
+  }
+
+  .op__incident-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .op__select {
+    max-width: 100%;
   }
 }
 </style>

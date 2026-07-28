@@ -1,13 +1,28 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
+const sidebarOpen = ref(false)
 
 function handleLogout() {
   localStorage.removeItem('holasur_logged_in')
   router.push('/login')
 }
+
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
+function closeSidebar() {
+  sidebarOpen.value = false
+}
+
+// Close sidebar on route change (mobile)
+watch(() => route.path, () => {
+  sidebarOpen.value = false
+})
 </script>
 
 <template>
@@ -15,49 +30,62 @@ function handleLogout() {
     <RouterView />
   </template>
   <template v-else>
-    <aside class="sidebar">
+    <!-- Mobile overlay -->
+    <div
+      v-if="sidebarOpen"
+      class="sidebar-overlay"
+      @click="closeSidebar"
+    ></div>
+    <aside class="sidebar" :class="{ 'sidebar--open': sidebarOpen }">
       <div class="sidebar__brand">
         <span class="sidebar__logo">H</span>
         <span class="sidebar__title">Hola Sur</span>
       </div>
       <nav class="sidebar__nav">
-        <RouterLink to="/" class="sidebar__link">
+        <RouterLink to="/" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#9750;</span>
           Inicio
         </RouterLink>
-        <RouterLink to="/propiedades" class="sidebar__link">
+        <RouterLink to="/propiedades" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#9962;</span>
           Propiedades
         </RouterLink>
-        <RouterLink to="/reservas" class="sidebar__link">
+        <RouterLink to="/propietarios" class="sidebar__link" @click="closeSidebar">
+          <span class="sidebar__icon">&#128100;</span>
+          Propietarios
+        </RouterLink>
+        <RouterLink to="/reservas" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128197;</span>
           Reservas
         </RouterLink>
-        <RouterLink to="/pagos" class="sidebar__link">
+        <RouterLink to="/pagos" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128179;</span>
           Pagos
         </RouterLink>
-        <RouterLink to="/costes" class="sidebar__link">
+        <RouterLink to="/costes" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128176;</span>
           Costes
         </RouterLink>
-        <RouterLink to="/reportes" class="sidebar__link">
+        <RouterLink to="/reportes" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128200;</span>
           Reportes
         </RouterLink>
-        <RouterLink to="/analisis" class="sidebar__link">
+        <RouterLink to="/analisis" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128202;</span>
           Analisis
         </RouterLink>
       </nav>
       <div class="sidebar__footer">
         <button class="sidebar__logout" @click="handleLogout">
-          Cerrar sesión
+          Cerrar sesion
         </button>
       </div>
     </aside>
     <div class="main">
       <header class="header">
+        <button class="header__hamburger" @click="toggleSidebar" aria-label="Menu">
+          &#9776;
+        </button>
         <h1 class="header__title">Hola Sur</h1>
         <span class="header__subtitle">Panel de gestion</span>
       </header>
@@ -205,5 +233,69 @@ function handleLogout() {
 .content {
   flex: 1;
   padding: 32px;
+}
+
+.header__hamburger {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.header__hamburger:hover {
+  background: var(--color-background-mute);
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar--open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+  }
+
+  .header__hamburger {
+    display: block;
+  }
+
+  .header__subtitle {
+    display: none;
+  }
+
+  .header__title {
+    font-size: 1.1rem;
+  }
+
+  .header {
+    padding: 12px 16px;
+  }
+
+  .content {
+    padding: 16px;
+  }
 }
 </style>

@@ -935,4 +935,42 @@ onMounted(() => {
   color: var(--color-text-secondary);
   opacity: 0.5;
 }
+
+@media (max-width: 768px) {
+  .costs__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .costs__heading {
+    font-size: 1.3rem;
+  }
+
+  .costs__tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .costs__tab {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .structural__th--amount {
+    width: 120px;
+  }
+
+  .structural__th--desc {
+    width: auto;
+  }
+
+  .structural__td {
+    padding: 6px 10px;
+  }
+
+  .structural__input {
+    max-width: 120px;
+  }
+}
 </style>

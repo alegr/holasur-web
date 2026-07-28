@@ -333,9 +333,22 @@ watch([dateFrom, dateTo], fetchReport)
 }
 
 @media (max-width: 768px) {
+  .report__header {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .report__heading {
+    font-size: 1.3rem;
+  }
+
   .report__filters {
     flex-direction: column;
     width: 100%;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
 
   .cost-breakdown {

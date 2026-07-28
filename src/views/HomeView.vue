@@ -153,4 +153,29 @@ function formatDate(dateStr: string): string {
   display: flex;
   gap: 12px;
 }
+
+@media (max-width: 768px) {
+  .home__heading {
+    font-size: 1.4rem;
+  }
+
+  .home__description {
+    font-size: 0.95rem;
+    margin-bottom: 20px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .quick-actions__buttons {
+    flex-direction: column;
+  }
+}
 </style>
