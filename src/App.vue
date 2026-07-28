@@ -41,6 +41,10 @@ function handleLogout() {
           <span class="sidebar__icon">&#128176;</span>
           Costes
         </RouterLink>
+        <RouterLink to="/reportes" class="sidebar__link">
+          <span class="sidebar__icon">&#128200;</span>
+          Reportes
+        </RouterLink>
         <RouterLink to="/analisis" class="sidebar__link">
           <span class="sidebar__icon">&#128202;</span>
           Analisis

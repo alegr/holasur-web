@@ -5,11 +5,13 @@ import {
   laravelApi,
   analyticsApi,
   importerApi,
+  reportsApi,
   type Property,
   type Booking,
   type Purchase,
   type Expense,
   type PropertyProfitability,
+  type PropertyPnl,
 } from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
@@ -21,6 +23,13 @@ const bookings = ref<Booking[]>([])
 const purchases = ref<Purchase[]>([])
 const expenses = ref<Expense[]>([])
 const profitability = ref<PropertyProfitability | null>(null)
+const propertyPnl = ref<PropertyPnl | null>(null)
+const pnlLoading = ref(false)
+
+const today = new Date()
+const firstOfYear = new Date(today.getFullYear(), 0, 1)
+const pnlFrom = ref(firstOfYear.toISOString().slice(0, 10))
+const pnlTo = ref(today.toISOString().slice(0, 10))
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -157,6 +166,21 @@ const distances = computed((): Distance[] => {
     .map((m) => ({ label: m.label, value: detail.value![m.key] ?? '' }))
 })
 
+async function fetchPnl() {
+  pnlLoading.value = true
+  try {
+    propertyPnl.value = await reportsApi.getPropertyPnl(
+      propertyId.value,
+      pnlFrom.value,
+      pnlTo.value,
+    )
+  } catch {
+    propertyPnl.value = null
+  } finally {
+    pnlLoading.value = false
+  }
+}
+
 async function fetchData() {
   loading.value = true
   error.value = null
@@ -181,6 +205,9 @@ async function fetchData() {
     } catch {
       profitability.value = null
     }
+
+    // Fetch P&L report
+    fetchPnl()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Error al cargar propiedad'
   } finally {
@@ -508,43 +535,186 @@ onMounted(fetchData)
         </div>
       </div>
 
-      <!-- Rentabilidad -->
+      <!-- Estado de Resultados (P&L) -->
       <div class="card detail__section">
-        <h3 class="detail__section-title">Rentabilidad</h3>
-        <div v-if="profitability" class="detail__grid detail__grid--3">
-          <div class="detail__field">
-            <span class="detail__label">Ingresos</span>
-            <span class="detail__value detail__value--highlight">
-              {{ formatAmount(profitability.gross_revenue) }}
-            </span>
-          </div>
-          <div class="detail__field">
-            <span class="detail__label">Costes directos</span>
-            <span class="detail__value">{{ formatAmount(profitability.direct_costs) }}</span>
-          </div>
-          <div class="detail__field">
-            <span class="detail__label">Margen bruto</span>
-            <span class="detail__value">{{ formatAmount(profitability.gross_margin) }}</span>
-          </div>
-          <div class="detail__field">
-            <span class="detail__label">Costes indirectos</span>
-            <span class="detail__value">{{ formatAmount(profitability.indirect_costs) }}</span>
-          </div>
-          <div class="detail__field">
-            <span class="detail__label">Margen neto</span>
-            <span class="detail__value" :style="{ color: (profitability.net_margin ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-error)' }">
-              {{ formatAmount(profitability.net_margin) }}
-            </span>
-          </div>
-          <div class="detail__field">
-            <span class="detail__label">ROI</span>
-            <span class="detail__value detail__value--highlight">
-              {{ (profitability.roi_percent ?? 0).toFixed(1) }}%
-            </span>
+        <div class="pnl__header">
+          <h3 class="detail__section-title" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0;">Estado de Resultados</h3>
+          <div class="pnl__date-filters">
+            <label class="pnl__filter-label">
+              Desde
+              <input type="date" v-model="pnlFrom" class="input" @change="fetchPnl" />
+            </label>
+            <label class="pnl__filter-label">
+              Hasta
+              <input type="date" v-model="pnlTo" class="input" @change="fetchPnl" />
+            </label>
           </div>
         </div>
+
+        <div v-if="pnlLoading" class="detail__empty">
+          <span class="spinner spinner--small"></span> Cargando...
+        </div>
+        <template v-else-if="propertyPnl">
+          <!-- Summary cards -->
+          <div class="pnl__summary-grid">
+            <div class="pnl__summary-card">
+              <span class="pnl__summary-label">Ingresos</span>
+              <span class="pnl__summary-value">{{ formatAmount(propertyPnl.revenue.gross_revenue) }}</span>
+            </div>
+            <div class="pnl__summary-card">
+              <span class="pnl__summary-label">Costos</span>
+              <span class="pnl__summary-value pnl__amount--cost">
+                {{ formatAmount(propertyPnl.costs.platform_commissions + propertyPnl.costs.direct_costs + propertyPnl.costs.monthly_costs) }}
+              </span>
+            </div>
+            <div class="pnl__summary-card">
+              <span class="pnl__summary-label">Margen operativo</span>
+              <span class="pnl__summary-value" :class="propertyPnl.margin.operating_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                {{ formatAmount(propertyPnl.margin.operating_margin) }}
+                <small>({{ propertyPnl.margin.margin_percent.toFixed(1) }}%)</small>
+              </span>
+            </div>
+            <div class="pnl__summary-card">
+              <span class="pnl__summary-label">Reservas</span>
+              <span class="pnl__summary-value">{{ propertyPnl.revenue.total_bookings }}</span>
+            </div>
+          </div>
+
+          <!-- P&L breakdown table -->
+          <table class="pnl__table">
+            <tbody>
+              <tr class="pnl__section-header">
+                <td colspan="2">Ingresos</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Alquiler total</td>
+                <td class="pnl__amount">{{ formatAmount(propertyPnl.revenue.total_rent) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Extras total</td>
+                <td class="pnl__amount">{{ formatAmount(propertyPnl.revenue.total_extras) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--total">
+                <td>Ingresos brutos</td>
+                <td class="pnl__amount">{{ formatAmount(propertyPnl.revenue.gross_revenue) }}</td>
+              </tr>
+
+              <tr class="pnl__section-header">
+                <td colspan="2">Costos</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Comisiones plataforma</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(propertyPnl.costs.platform_commissions) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--total">
+                <td>Margen bruto</td>
+                <td class="pnl__amount" :class="propertyPnl.margin.gross_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                  {{ formatAmount(propertyPnl.margin.gross_margin) }}
+                </td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Costos directos</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(propertyPnl.costs.direct_costs) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Costos mensuales propiedad</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(propertyPnl.costs.monthly_costs) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--total">
+                <td>Margen operativo</td>
+                <td class="pnl__amount" :class="propertyPnl.margin.operating_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                  {{ formatAmount(propertyPnl.margin.operating_margin) }}
+                  <small>({{ propertyPnl.margin.margin_percent.toFixed(1) }}%)</small>
+                </td>
+              </tr>
+
+              <tr class="pnl__section-header">
+                <td colspan="2">Pagos (Avantio)</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Recibidos</td>
+                <td class="pnl__amount">{{ formatAmount(propertyPnl.payments.total_received) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Pendientes</td>
+                <td class="pnl__amount" :class="propertyPnl.payments.total_pending > 0 ? 'pnl__amount--cost' : ''">
+                  {{ formatAmount(propertyPnl.payments.total_pending) }}
+                </td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Pagados (egresos)</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(propertyPnl.payments.total_paid_out) }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Costs by category bar chart -->
+          <div v-if="propertyPnl.costs.costs_by_category.length > 0" class="pnl__category-section">
+            <h4 class="detail__subsection-title">Costos por categoria</h4>
+            <div class="pnl__bar-chart">
+              <div
+                v-for="cat in propertyPnl.costs.costs_by_category"
+                :key="cat.category"
+                class="pnl__bar-row"
+              >
+                <span class="pnl__bar-label">{{ cat.category }}</span>
+                <div class="pnl__bar-track">
+                  <div
+                    class="pnl__bar-fill"
+                    :style="{
+                      width: Math.max(
+                        (cat.total / Math.max(...propertyPnl.costs.costs_by_category.map(c => c.total))) * 100,
+                        4
+                      ) + '%'
+                    }"
+                  ></div>
+                </div>
+                <span class="pnl__bar-value">{{ formatAmount(cat.total) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bookings with individual margins -->
+          <div v-if="propertyPnl.bookings.length > 0" class="pnl__bookings-section">
+            <h4 class="detail__subsection-title">Reservas con margen individual</h4>
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Referencia</th>
+                    <th>Entrada</th>
+                    <th>Salida</th>
+                    <th>Canal</th>
+                    <th>Total</th>
+                    <th>Comision</th>
+                    <th>Costos</th>
+                    <th>Margen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="b in propertyPnl.bookings" :key="b.id">
+                    <td>
+                      <RouterLink :to="`/reservas/${b.id}`">
+                        <code>{{ b.reference || '--' }}</code>
+                      </RouterLink>
+                    </td>
+                    <td>{{ formatDate(b.check_in) }}</td>
+                    <td>{{ formatDate(b.check_out) }}</td>
+                    <td>{{ b.channel || '--' }}</td>
+                    <td>{{ formatAmount(b.total) }}</td>
+                    <td class="pnl__amount--cost">{{ formatAmount(b.commission) }}</td>
+                    <td class="pnl__amount--cost">{{ formatAmount(b.costs) }}</td>
+                    <td :class="b.margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                      {{ formatAmount(b.margin) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
         <div v-else class="detail__empty">
-          No hay datos de rentabilidad disponibles.
+          No hay datos de estado de resultados disponibles.
         </div>
       </div>
     </template>
@@ -785,5 +955,181 @@ code {
   background: var(--color-background-mute);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+/* P&L Styles */
+.pnl__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.pnl__date-filters {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.pnl__filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.pnl__filter-label .input {
+  font-size: 0.85rem;
+  padding: 4px 8px;
+}
+
+.pnl__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.pnl__summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  background: var(--color-background-soft);
+  border-radius: var(--radius-md);
+}
+
+.pnl__summary-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.pnl__summary-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.pnl__summary-value small {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.pnl__table {
+  width: 100%;
+  max-width: 600px;
+  border-collapse: collapse;
+  margin-bottom: 24px;
+}
+
+.pnl__table td {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.pnl__section-header td {
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding-top: 16px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-heading);
+}
+
+.pnl__row--indent td:first-child {
+  padding-left: 24px;
+}
+
+.pnl__row--total {
+  background: var(--color-background-soft);
+  border-radius: var(--radius-sm);
+}
+
+.pnl__row--total td {
+  font-weight: 700;
+}
+
+.pnl__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.pnl__amount--cost {
+  color: var(--color-error);
+}
+
+.pnl__amount--positive {
+  color: var(--color-success);
+}
+
+.pnl__amount--negative {
+  color: var(--color-error);
+}
+
+.pnl__category-section,
+.pnl__bookings-section {
+  margin-top: 24px;
+}
+
+.pnl__bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 600px;
+}
+
+.pnl__bar-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 100px;
+  align-items: center;
+  gap: 12px;
+}
+
+.pnl__bar-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pnl__bar-track {
+  height: 20px;
+  background: var(--color-background-mute);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.pnl__bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+  min-width: 4px;
+  transition: width 0.3s ease;
+}
+
+.pnl__bar-value {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .pnl__summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .pnl__bar-row {
+    grid-template-columns: 100px 1fr 80px;
+  }
 }
 </style>

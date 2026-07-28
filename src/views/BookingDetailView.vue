@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { laravelApi, importerApi, type Booking } from '@/services/api'
+import { laravelApi, importerApi, reportsApi, type Booking, type BookingPnl } from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
 const route = useRoute()
 const bookingId = computed(() => Number(route.params.id))
 
 const booking = ref<Booking | null>(null)
+const pnl = ref<BookingPnl | null>(null)
+const pnlLoading = ref(false)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const updating = ref(false)
@@ -135,11 +137,23 @@ const rawDataEntries = computed(() => {
   return Object.entries(booking.value.raw_data).filter(([key]) => key !== '_detail')
 })
 
+async function fetchPnl() {
+  pnlLoading.value = true
+  try {
+    pnl.value = await reportsApi.getBookingPnl(bookingId.value)
+  } catch {
+    pnl.value = null
+  } finally {
+    pnlLoading.value = false
+  }
+}
+
 async function fetchBooking() {
   loading.value = true
   error.value = null
   try {
     booking.value = await laravelApi.getBooking(bookingId.value)
+    fetchPnl()
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Error al cargar reserva'
   } finally {
@@ -298,6 +312,102 @@ onMounted(fetchBooking)
         :property-id="booking.property_id ?? undefined"
         @added="fetchBooking"
       />
+
+      <!-- Estado de Resultados (P&L) -->
+      <div class="card detail__section">
+        <h3 class="detail__section-title">Estado de Resultados</h3>
+        <div v-if="pnlLoading" class="detail__empty">
+          <span class="spinner spinner--small"></span> Cargando...
+        </div>
+        <div v-else-if="pnl" class="pnl">
+          <table class="pnl__table">
+            <tbody>
+              <!-- Ingresos -->
+              <tr class="pnl__section-header">
+                <td colspan="2">Ingresos</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Alquiler</td>
+                <td class="pnl__amount">{{ formatAmount(pnl.revenue.rent) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Extras</td>
+                <td class="pnl__amount">{{ formatAmount(pnl.revenue.extras) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--total">
+                <td>Total bruto</td>
+                <td class="pnl__amount">{{ formatAmount(pnl.revenue.gross_total) }}</td>
+              </tr>
+
+              <!-- Costos -->
+              <tr class="pnl__section-header">
+                <td colspan="2">Costos</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Comision plataforma</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.platform_commission) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Costos directos</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.direct_costs) }}</td>
+              </tr>
+              <template v-if="pnl.costs.direct_costs_breakdown.length > 0">
+                <tr
+                  v-for="item in pnl.costs.direct_costs_breakdown"
+                  :key="item.category"
+                  class="pnl__row pnl__row--indent2"
+                >
+                  <td>{{ item.category }}</td>
+                  <td class="pnl__amount pnl__amount--cost">{{ formatAmount(item.amount) }}</td>
+                </tr>
+              </template>
+
+              <!-- Pagos -->
+              <tr class="pnl__section-header">
+                <td colspan="2">Pagos</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Pagado</td>
+                <td class="pnl__amount">{{ formatAmount(pnl.payments.paid) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Pendiente</td>
+                <td class="pnl__amount" :class="pnl.payments.pending > 0 ? 'pnl__amount--cost' : ''">{{ formatAmount(pnl.payments.pending) }}</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Recibido (Avantio)</td>
+                <td class="pnl__amount">{{ formatAmount(pnl.payments.received) }}</td>
+              </tr>
+
+              <!-- Margenes -->
+              <tr class="pnl__section-header">
+                <td colspan="2">Margenes</td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>Margen bruto</td>
+                <td class="pnl__amount" :class="pnl.margin.gross_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                  {{ formatAmount(pnl.margin.gross_margin) }}
+                </td>
+              </tr>
+              <tr class="pnl__row pnl__row--total">
+                <td>Margen neto</td>
+                <td class="pnl__amount" :class="pnl.margin.net_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                  {{ formatAmount(pnl.margin.net_margin) }}
+                </td>
+              </tr>
+              <tr class="pnl__row pnl__row--indent">
+                <td>% Margen</td>
+                <td class="pnl__amount" :class="pnl.margin.margin_percent >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
+                  {{ pnl.margin.margin_percent.toFixed(1) }}%
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="detail__empty">
+          No hay datos de estado de resultados disponibles.
+        </div>
+      </div>
 
       <!-- Economic breakdown (from _detail) -->
       <div v-if="hasDetail && economicBreakdown.length > 0" class="card detail__section">
@@ -575,5 +685,63 @@ code {
   background: var(--color-background-mute);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+/* P&L Table */
+.pnl__table {
+  width: 100%;
+  max-width: 500px;
+  border-collapse: collapse;
+}
+
+.pnl__table td {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+.pnl__section-header td {
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding-top: 16px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--color-border);
+  color: var(--color-heading);
+}
+
+.pnl__row--indent td:first-child {
+  padding-left: 24px;
+}
+
+.pnl__row--indent2 td:first-child {
+  padding-left: 40px;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.pnl__row--total {
+  background: var(--color-background-soft);
+  border-radius: var(--radius-sm);
+}
+
+.pnl__row--total td {
+  font-weight: 700;
+}
+
+.pnl__amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.pnl__amount--cost {
+  color: var(--color-error);
+}
+
+.pnl__amount--positive {
+  color: var(--color-success);
+}
+
+.pnl__amount--negative {
+  color: var(--color-error);
 }
 </style>

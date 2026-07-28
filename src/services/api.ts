@@ -206,6 +206,43 @@ export interface Expense {
   notes: string | null
 }
 
+// Batch cost types
+export interface BatchCostItem {
+  property_id: number
+  category_id: number
+  amount: number
+  note?: string
+}
+
+export interface BatchCostPropertyGroup {
+  property_id: number
+  property_name: string
+  costs: { category_id: number; amount: number; note: string | null }[]
+}
+
+export interface BatchCostsResponse {
+  data: BatchCostPropertyGroup[]
+  month: string
+}
+
+export interface StructuralCostItem {
+  category_id: number
+  amount: number
+  description?: string
+}
+
+export interface StructuralCostEntry {
+  category_id: number
+  category_name: string
+  amount: number
+  description: string
+}
+
+export interface StructuralCostsResponse {
+  data: StructuralCostEntry[]
+  month: string
+}
+
 export interface ExpenseCreatePayload {
   beneficiary_type: string
   beneficiary_name: string
@@ -335,6 +372,35 @@ export const laravelApi = {
     if (params.booking_id) urlParams.set('booking_id', String(params.booking_id))
     const query = urlParams.toString()
     return request(`${API_URL}/quick-cost/recent${query ? `?${query}` : ''}`)
+  },
+
+  // Batch costs (monthly cost entry)
+  getBatchCosts(month: string): Promise<BatchCostsResponse> {
+    return request<BatchCostsResponse>(`${API_URL}/batch-costs?month=${encodeURIComponent(month)}`)
+  },
+
+  saveBatchCosts(month: string, costs: BatchCostItem[]): Promise<{ message: string; created: number }> {
+    return request<{ message: string; created: number }>(`${API_URL}/batch-costs`, {
+      method: 'POST',
+      body: JSON.stringify({ month, costs }),
+    })
+  },
+
+  // Structural costs
+  getStructuralCosts(month: string): Promise<StructuralCostsResponse> {
+    return request<StructuralCostsResponse>(
+      `${API_URL}/structural-costs?month=${encodeURIComponent(month)}`,
+    )
+  },
+
+  saveStructuralCosts(
+    month: string,
+    costs: StructuralCostItem[],
+  ): Promise<{ message: string; created: number }> {
+    return request<{ message: string; created: number }>(`${API_URL}/structural-costs`, {
+      method: 'POST',
+      body: JSON.stringify({ month, costs }),
+    })
   },
 
   getPayments(params?: {
@@ -480,6 +546,128 @@ function dateParams(from?: string, to?: string): string {
   if (to) params.set('to', to)
   const query = params.toString()
   return query ? `?${query}` : ''
+}
+
+// P&L Report types
+export interface BookingPnl {
+  booking: {
+    id: number
+    reference: string | null
+    check_in: string
+    check_out: string
+    property_name: string | null
+    channel: string | null
+  }
+  revenue: {
+    rent: number
+    extras: number
+    gross_total: number
+  }
+  costs: {
+    platform_commission: number
+    direct_costs: number
+    direct_costs_breakdown: { category: string; amount: number }[]
+  }
+  payments: {
+    paid: number
+    pending: number
+    received: number
+  }
+  margin: {
+    gross_margin: number
+    net_margin: number
+    margin_percent: number
+  }
+}
+
+export interface PropertyPnl {
+  property: {
+    id: number
+    name: string
+    type: string | null
+    location: string | null
+  }
+  period: { from: string | null; to: string | null }
+  revenue: {
+    total_bookings: number
+    gross_revenue: number
+    total_rent: number
+    total_extras: number
+  }
+  costs: {
+    platform_commissions: number
+    direct_costs: number
+    costs_by_category: { category: string; total: number }[]
+    monthly_costs: number
+  }
+  payments: {
+    total_received: number
+    total_pending: number
+    total_paid_out: number
+  }
+  margin: {
+    gross_margin: number
+    operating_margin: number
+    margin_percent: number
+  }
+  bookings: {
+    id: number
+    reference: string | null
+    check_in: string
+    check_out: string
+    channel: string | null
+    total: number
+    commission: number
+    costs: number
+    margin: number
+  }[]
+}
+
+export interface GlobalPnl {
+  period: { from: string | null; to: string | null }
+  revenue: {
+    total_bookings: number
+    gross_revenue: number
+    by_channel: { channel: string; total: number; count: number }[]
+  }
+  costs: {
+    platform_commissions: number
+    direct_costs: number
+    structural_costs: number
+    by_category: { category: string; total: number }[]
+  }
+  margin: {
+    gross_margin: number
+    operating_margin: number
+    net_margin: number
+    margin_percent: number
+  }
+  properties: {
+    id: number
+    name: string
+    revenue: number
+    costs: number
+    margin: number
+    bookings_count: number
+  }[]
+}
+
+export const reportsApi = {
+  getBookingPnl(id: number): Promise<BookingPnl> {
+    return request<{ data: BookingPnl }>(`${API_URL}/reports/pnl/booking/${id}`).then((r) => r.data)
+  },
+
+  getPropertyPnl(id: number, from?: string, to?: string): Promise<PropertyPnl> {
+    return request<{ data: PropertyPnl }>(
+      `${API_URL}/reports/pnl/property/${id}${dateParams(from, to)}`,
+    ).then((r) => r.data)
+  },
+
+  getGlobalPnl(from?: string, to?: string): Promise<GlobalPnl> {
+    return request<{ data: GlobalPnl }>(
+      `${API_URL}/reports/pnl/global${dateParams(from, to)}`,
+    ).then((r) => r.data)
+  },
 }
 
 export const analyticsApi = {
