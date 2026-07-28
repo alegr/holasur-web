@@ -467,6 +467,9 @@ async function fetchData() {
     // Fetch incidents
     fetchIncidents()
 
+    // Fetch inventory
+    fetchInventory()
+
     // Fetch P&L report
     fetchPnl()
   } catch (e) {
