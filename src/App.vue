@@ -13,10 +13,6 @@ import { RouterLink, RouterView } from 'vue-router'
         <span class="sidebar__icon">&#9750;</span>
         Inicio
       </RouterLink>
-      <RouterLink to="/importar" class="sidebar__link">
-        <span class="sidebar__icon">&#8635;</span>
-        Importar
-      </RouterLink>
       <RouterLink to="/propiedades" class="sidebar__link">
         <span class="sidebar__icon">&#9962;</span>
         Propiedades
@@ -25,13 +21,13 @@ import { RouterLink, RouterView } from 'vue-router'
         <span class="sidebar__icon">&#128197;</span>
         Reservas
       </RouterLink>
-      <RouterLink to="/costes" class="sidebar__link">
-        <span class="sidebar__icon">&#128176;</span>
-        Costes
-      </RouterLink>
       <RouterLink to="/pagos" class="sidebar__link">
         <span class="sidebar__icon">&#128179;</span>
         Pagos
+      </RouterLink>
+      <RouterLink to="/costes" class="sidebar__link">
+        <span class="sidebar__icon">&#128176;</span>
+        Costes
       </RouterLink>
       <RouterLink to="/analisis" class="sidebar__link">
         <span class="sidebar__icon">&#128202;</span>
@@ -42,7 +38,7 @@ import { RouterLink, RouterView } from 'vue-router'
   <div class="main">
     <header class="header">
       <h1 class="header__title">HolaSur</h1>
-      <span class="header__subtitle">Panel de gestión</span>
+      <span class="header__subtitle">Panel de gestion</span>
     </header>
     <main class="content">
       <RouterView />
@@ -54,7 +50,7 @@ import { RouterLink, RouterView } from 'vue-router'
 .sidebar {
   width: var(--sidebar-width);
   min-height: 100vh;
-  background: var(--color-secondary);
+  background: var(--color-primary);
   color: white;
   display: flex;
   flex-direction: column;
@@ -65,55 +61,58 @@ import { RouterLink, RouterView } from 'vue-router'
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 24px 24px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .sidebar__logo {
-  width: 36px;
-  height: 36px;
-  background: var(--color-primary);
-  border-radius: var(--radius-md);
+  width: 38px;
+  height: 38px;
+  background: var(--color-cream);
+  color: var(--color-primary);
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 1.2rem;
+  font-size: 1.25rem;
+  flex-shrink: 0;
 }
 
 .sidebar__title {
   font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  letter-spacing: 0.03em;
 }
 
 .sidebar__nav {
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
-  gap: 4px;
+  gap: 2px;
 }
 
 .sidebar__link {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 11px 16px;
   border-radius: var(--radius-md);
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 0.95rem;
-  font-weight: 500;
+  font-weight: 400;
   transition: all 0.2s;
 }
 
 .sidebar__link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .sidebar__link.router-link-exact-active {
-  background: var(--color-primary);
-  color: white;
+  background: rgba(244, 242, 226, 0.15);
+  color: var(--color-cream);
+  font-weight: 500;
 }
 
 .sidebar__icon {
@@ -135,19 +134,19 @@ import { RouterLink, RouterView } from 'vue-router'
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: baseline;
-  gap: 16px;
-  box-shadow: var(--shadow-sm);
+  gap: 12px;
 }
 
 .header__title {
-  font-size: 1.3rem;
-  font-weight: 700;
+  font-size: 1.25rem;
+  font-weight: 600;
   color: var(--color-primary);
 }
 
 .header__subtitle {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: var(--color-text-secondary);
+  font-weight: 400;
 }
 
 .content {

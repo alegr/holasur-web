@@ -26,22 +26,22 @@ a:hover {
 }
 
 .badge--success {
-  background: #e8f8f0;
+  background: #e4f3ed;
   color: var(--color-success);
 }
 
 .badge--error {
-  background: #fdecea;
+  background: #fbeaea;
   color: var(--color-error);
 }
 
 .badge--warning {
-  background: #fef9e7;
-  color: var(--color-warning);
+  background: #faf4e4;
+  color: #a17d2f;
 }
 
 .badge--info {
-  background: #ebf5fb;
+  background: #e6f2f5;
   color: var(--color-info);
 }
 
@@ -52,7 +52,7 @@ a:hover {
   gap: 8px;
   padding: 10px 24px;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
@@ -71,17 +71,18 @@ a:hover {
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--color-primary-dark);
+  background: var(--color-primary-light);
   box-shadow: var(--shadow-md);
 }
 
 .btn--secondary {
-  background: var(--color-secondary);
-  color: white;
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-primary);
 }
 
 .btn--secondary:hover:not(:disabled) {
-  background: var(--color-secondary-light);
+  background: var(--color-primary-lighter);
 }
 
 .btn--danger {
@@ -90,7 +91,7 @@ a:hover {
 }
 
 .btn--danger:hover:not(:disabled) {
-  background: #c0392b;
+  background: #a93e3e;
 }
 
 .btn--success {
@@ -99,7 +100,7 @@ a:hover {
 }
 
 .btn--success:hover:not(:disabled) {
-  background: #219a52;
+  background: #1b6f58;
 }
 
 .btn--large {
@@ -138,10 +139,11 @@ table th {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  background: var(--color-background);
 }
 
 table tbody tr:hover {
-  background: var(--color-background-soft);
+  background: var(--color-background);
 }
 
 /* Spinner */
@@ -182,5 +184,5 @@ table tbody tr:hover {
 
 .input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1);
+  box-shadow: 0 0 0 3px rgba(22, 70, 63, 0.1);
 }

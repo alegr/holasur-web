@@ -272,7 +272,7 @@ onMounted(() => {
 }
 
 .form-error {
-  background: #fdecea;
+  background: #fbeaea;
   color: var(--color-error);
   padding: 12px 16px;
   border-radius: var(--radius-md);
