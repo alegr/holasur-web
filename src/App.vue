@@ -1,49 +1,67 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+
+const route = useRoute()
+const router = useRouter()
+
+function handleLogout() {
+  localStorage.removeItem('holasur_logged_in')
+  router.push('/login')
+}
 </script>
 
 <template>
-  <aside class="sidebar">
-    <div class="sidebar__brand">
-      <span class="sidebar__logo">H</span>
-      <span class="sidebar__title">Hola Sur</span>
+  <template v-if="route.name === 'login'">
+    <RouterView />
+  </template>
+  <template v-else>
+    <aside class="sidebar">
+      <div class="sidebar__brand">
+        <span class="sidebar__logo">H</span>
+        <span class="sidebar__title">Hola Sur</span>
+      </div>
+      <nav class="sidebar__nav">
+        <RouterLink to="/" class="sidebar__link">
+          <span class="sidebar__icon">&#9750;</span>
+          Inicio
+        </RouterLink>
+        <RouterLink to="/propiedades" class="sidebar__link">
+          <span class="sidebar__icon">&#9962;</span>
+          Propiedades
+        </RouterLink>
+        <RouterLink to="/reservas" class="sidebar__link">
+          <span class="sidebar__icon">&#128197;</span>
+          Reservas
+        </RouterLink>
+        <RouterLink to="/pagos" class="sidebar__link">
+          <span class="sidebar__icon">&#128179;</span>
+          Pagos
+        </RouterLink>
+        <RouterLink to="/costes" class="sidebar__link">
+          <span class="sidebar__icon">&#128176;</span>
+          Costes
+        </RouterLink>
+        <RouterLink to="/analisis" class="sidebar__link">
+          <span class="sidebar__icon">&#128202;</span>
+          Analisis
+        </RouterLink>
+      </nav>
+      <div class="sidebar__footer">
+        <button class="sidebar__logout" @click="handleLogout">
+          Cerrar sesión
+        </button>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="header">
+        <h1 class="header__title">Hola Sur</h1>
+        <span class="header__subtitle">Panel de gestion</span>
+      </header>
+      <main class="content">
+        <RouterView />
+      </main>
     </div>
-    <nav class="sidebar__nav">
-      <RouterLink to="/" class="sidebar__link">
-        <span class="sidebar__icon">&#9750;</span>
-        Inicio
-      </RouterLink>
-      <RouterLink to="/propiedades" class="sidebar__link">
-        <span class="sidebar__icon">&#9962;</span>
-        Propiedades
-      </RouterLink>
-      <RouterLink to="/reservas" class="sidebar__link">
-        <span class="sidebar__icon">&#128197;</span>
-        Reservas
-      </RouterLink>
-      <RouterLink to="/pagos" class="sidebar__link">
-        <span class="sidebar__icon">&#128179;</span>
-        Pagos
-      </RouterLink>
-      <RouterLink to="/costes" class="sidebar__link">
-        <span class="sidebar__icon">&#128176;</span>
-        Costes
-      </RouterLink>
-      <RouterLink to="/analisis" class="sidebar__link">
-        <span class="sidebar__icon">&#128202;</span>
-        Analisis
-      </RouterLink>
-    </nav>
-  </aside>
-  <div class="main">
-    <header class="header">
-      <h1 class="header__title">Hola Sur</h1>
-      <span class="header__subtitle">Panel de gestion</span>
-    </header>
-    <main class="content">
-      <RouterView />
-    </main>
-  </div>
+  </template>
 </template>
 
 <style scoped>
@@ -92,6 +110,7 @@ import { RouterLink, RouterView } from 'vue-router'
   flex-direction: column;
   padding: 16px 12px;
   gap: 2px;
+  flex: 1;
 }
 
 .sidebar__link {
@@ -121,6 +140,31 @@ import { RouterLink, RouterView } from 'vue-router'
   font-size: 1.2rem;
   width: 24px;
   text-align: center;
+}
+
+.sidebar__footer {
+  padding: 16px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.sidebar__logout {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+}
+
+.sidebar__logout:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .main {
