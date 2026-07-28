@@ -733,7 +733,7 @@ onMounted(fetchData)
 }
 
 .detail__amenity-badge--available {
-  background: #e8f8f0;
+  background: #e4f3ed;
   color: var(--color-success);
 }
 

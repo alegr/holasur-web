@@ -201,27 +201,27 @@ function getEntityLabel(key: string): string {
 }
 
 .import__status--waiting_for_login {
-  background: #ebf5fb;
-  border-left: 4px solid var(--color-info);
+  background: var(--color-primary-lighter);
+  border-left: 4px solid var(--color-primary);
 }
 
 .import__status--logged_in {
-  background: #e8f8f0;
+  background: #e4f3ed;
   border-left: 4px solid var(--color-success);
 }
 
 .import__status--importing {
-  background: #ebf5fb;
-  border-left: 4px solid var(--color-info);
+  background: var(--color-primary-lighter);
+  border-left: 4px solid var(--color-primary);
 }
 
 .import__status--done {
-  background: #e8f8f0;
+  background: #e4f3ed;
   border-left: 4px solid var(--color-success);
 }
 
 .import__status--error {
-  background: #fdecea;
+  background: #fbeaea;
   border-left: 4px solid var(--color-error);
 }
 

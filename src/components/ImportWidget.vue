@@ -226,17 +226,17 @@ function retry() {
 }
 
 .import-widget__row--info {
-  background: #ebf5fb;
-  border-left: 3px solid var(--color-info);
+  background: var(--color-primary-lighter);
+  border-left: 3px solid var(--color-primary);
 }
 
 .import-widget__row--success {
-  background: #e8f8f0;
+  background: #e4f3ed;
   border-left: 3px solid var(--color-success);
 }
 
 .import-widget__row--error {
-  background: #fdecea;
+  background: #fbeaea;
   border-left: 3px solid var(--color-error);
 }
 
