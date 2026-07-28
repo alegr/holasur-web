@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { laravelApi, importerApi, type Booking } from '@/services/api'
+import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
 const route = useRoute()
 const bookingId = computed(() => Number(route.params.id))
@@ -290,6 +291,13 @@ onMounted(fetchBooking)
           </div>
         </div>
       </div>
+
+      <!-- Quick Cost Widget -->
+      <QuickCostWidget
+        :booking-id="bookingId"
+        :property-id="booking.property_id ?? undefined"
+        @added="fetchBooking"
+      />
 
       <!-- Economic breakdown (from _detail) -->
       <div v-if="hasDetail && economicBreakdown.length > 0" class="card detail__section">

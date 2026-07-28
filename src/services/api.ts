@@ -301,6 +301,42 @@ export const laravelApi = {
     })
   },
 
+  // Quick cost
+  addQuickCost(data: {
+    category_id: number
+    amount: number
+    note?: string
+    property_id?: number
+    booking_id?: number
+    currency?: string
+  }): Promise<{ data: Purchase }> {
+    return request<{ data: Purchase }>(`${API_URL}/quick-cost`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  getRecentCosts(params: {
+    property_id?: number
+    booking_id?: number
+  }): Promise<{
+    data: {
+      id: number
+      date: string
+      category: string
+      amount: string
+      currency: string
+      note: string | null
+      purchase_number: string
+    }[]
+  }> {
+    const urlParams = new URLSearchParams()
+    if (params.property_id) urlParams.set('property_id', String(params.property_id))
+    if (params.booking_id) urlParams.set('booking_id', String(params.booking_id))
+    const query = urlParams.toString()
+    return request(`${API_URL}/quick-cost/recent${query ? `?${query}` : ''}`)
+  },
+
   getPayments(params?: {
     payment_type?: string
     from?: string

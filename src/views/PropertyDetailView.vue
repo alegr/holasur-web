@@ -11,6 +11,7 @@ import {
   type Expense,
   type PropertyProfitability,
 } from '@/services/api'
+import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
 const route = useRoute()
 const propertyId = computed(() => Number(route.params.id))
@@ -309,6 +310,9 @@ onMounted(fetchData)
           </template>
         </div>
       </div>
+
+      <!-- Quick Cost Widget -->
+      <QuickCostWidget :property-id="propertyId" @added="fetchData" />
 
       <!-- Characteristics card (from _detail) -->
       <div v-if="hasDetail" class="card detail__section">
