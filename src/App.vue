@@ -6,7 +6,7 @@ import { RouterLink, RouterView } from 'vue-router'
   <aside class="sidebar">
     <div class="sidebar__brand">
       <span class="sidebar__logo">H</span>
-      <span class="sidebar__title">HolaSur</span>
+      <span class="sidebar__title">Hola Sur</span>
     </div>
     <nav class="sidebar__nav">
       <RouterLink to="/" class="sidebar__link">
@@ -37,7 +37,7 @@ import { RouterLink, RouterView } from 'vue-router'
   </aside>
   <div class="main">
     <header class="header">
-      <h1 class="header__title">HolaSur</h1>
+      <h1 class="header__title">Hola Sur</h1>
       <span class="header__subtitle">Panel de gestion</span>
     </header>
     <main class="content">
@@ -80,9 +80,11 @@ import { RouterLink, RouterView } from 'vue-router'
 }
 
 .sidebar__title {
-  font-size: 1.25rem;
-  font-weight: 500;
-  letter-spacing: 0.03em;
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .sidebar__nav {
@@ -138,9 +140,12 @@ import { RouterLink, RouterView } from 'vue-router'
 }
 
 .header__title {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-family: var(--font-heading);
+  font-size: 1.3rem;
+  font-weight: 400;
   color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .header__subtitle {
