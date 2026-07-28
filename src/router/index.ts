@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import { authApi } from '@/services/api'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -69,18 +70,46 @@ const router = createRouter({
       name: 'reportes',
       component: () => import('../views/ReportsView.vue'),
     },
+    {
+      path: '/propietarios',
+      name: 'propietarios',
+      component: () => import('../views/OwnersView.vue'),
+    },
+    {
+      path: '/desvios',
+      name: 'desvios',
+      component: () => import('../views/DeviationsView.vue'),
+    },
   ],
 })
 
-router.beforeEach((to) => {
-  const isLoggedIn = localStorage.getItem('holasur_logged_in') === 'true'
+// Track whether we've validated the token this session
+let tokenValidated = false
 
-  if (!isLoggedIn && to.name !== 'login') {
+router.beforeEach(async (to) => {
+  const token = localStorage.getItem('holasur_token')
+
+  if (!token && to.name !== 'login') {
     return { name: 'login' }
   }
 
-  if (isLoggedIn && to.name === 'login') {
+  if (token && to.name === 'login') {
     return { name: 'home' }
+  }
+
+  // Validate token once per session on first protected route access
+  if (token && !tokenValidated && to.name !== 'login') {
+    try {
+      const user = await authApi.getUser()
+      localStorage.setItem('holasur_user', JSON.stringify(user))
+      tokenValidated = true
+    } catch {
+      // Token invalid - clear and redirect to login
+      localStorage.removeItem('holasur_token')
+      localStorage.removeItem('holasur_user')
+      tokenValidated = false
+      return { name: 'login' }
+    }
   }
 })
 

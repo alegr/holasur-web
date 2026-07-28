@@ -1,11 +1,38 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { authApi } from '@/services/api'
 
 const router = useRouter()
 
-function handleLogin() {
-  localStorage.setItem('holasur_logged_in', 'true')
-  router.push('/')
+const email = ref('')
+const password = ref('')
+const errorMsg = ref('')
+const loading = ref(false)
+
+async function handleLogin() {
+  if (!email.value || !password.value) {
+    errorMsg.value = 'Ingrese email y contrasena'
+    return
+  }
+
+  loading.value = true
+  errorMsg.value = ''
+
+  try {
+    const res = await authApi.login(email.value, password.value)
+    localStorage.setItem('holasur_token', res.token)
+    localStorage.setItem('holasur_user', JSON.stringify(res.user))
+    router.push('/')
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('422')) {
+      errorMsg.value = 'Email o contrasena incorrectos'
+    } else {
+      errorMsg.value = 'Error de conexion. Intente nuevamente.'
+    }
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -15,11 +42,37 @@ function handleLogin() {
       <div class="login-card__header">
         <h1 class="login-card__title">HOLA SUR</h1>
         <div class="login-card__accent"></div>
-        <p class="login-card__subtitle">Panel de gestión</p>
+        <p class="login-card__subtitle">Panel de gestion</p>
       </div>
-      <button class="login-card__button" @click="handleLogin">
-        Ingresar como administrador
-      </button>
+      <form class="login-card__form" @submit.prevent="handleLogin">
+        <div class="login-card__field">
+          <label class="login-card__label" for="email">Email</label>
+          <input
+            id="email"
+            v-model="email"
+            type="email"
+            class="login-card__input"
+            placeholder="admin@holasur.com.ar"
+            autocomplete="username"
+          />
+        </div>
+        <div class="login-card__field">
+          <label class="login-card__label" for="password">Contrasena</label>
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            class="login-card__input"
+            placeholder="Ingrese su contrasena"
+            autocomplete="current-password"
+          />
+        </div>
+        <div v-if="errorMsg" class="login-card__error">{{ errorMsg }}</div>
+        <button class="login-card__button" type="submit" :disabled="loading">
+          <span v-if="loading" class="spinner spinner--small"></span>
+          {{ loading ? 'Ingresando...' : 'Ingresar' }}
+        </button>
+      </form>
     </div>
   </div>
 </template>
@@ -51,7 +104,7 @@ function handleLogin() {
 }
 
 .login-card__header {
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .login-card__title {
@@ -78,8 +131,59 @@ function handleLogin() {
   letter-spacing: 0.02em;
 }
 
+.login-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+
+.login-card__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.login-card__input {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.login-card__input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(22, 70, 63, 0.1);
+}
+
+.login-card__error {
+  color: var(--color-error, #dc2626);
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-align: left;
+  padding: 8px 12px;
+  background: #fde8e8;
+  border-radius: 6px;
+}
+
 .login-card__button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
   padding: 14px 24px;
   background: var(--color-primary);
@@ -90,16 +194,24 @@ function handleLogin() {
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
   letter-spacing: 0.01em;
+  margin-top: 8px;
 }
 
-.login-card__button:hover {
+.login-card__button:hover:not(:disabled) {
   background: var(--color-primary-light);
   box-shadow: 0 4px 16px rgba(22, 70, 63, 0.18);
 }
 
-.login-card__button:active {
+.login-card__button:active:not(:disabled) {
   background: var(--color-primary-dark);
+}
+
+.login-card__button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 </style>

@@ -7,6 +7,7 @@ import {
   importerApi,
   reportsApi,
   operationalApi,
+  inventoryApi,
   type Property,
   type Booking,
   type Purchase,
@@ -14,6 +15,7 @@ import {
   type PropertyProfitability,
   type PropertyPnl,
   type PropertyIncident,
+  type PropertyInventoryItem,
 } from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
 
@@ -154,6 +156,129 @@ async function updateIncidentStatus(id: number, status: string) {
     expandedIncidentId.value = null
     resolutionText.value = ''
     await fetchIncidents()
+  } catch {
+    // ignore
+  }
+}
+
+// Inventory state
+const inventoryItems = ref<PropertyInventoryItem[]>([])
+const inventoryLoading = ref(false)
+const showNewItemForm = ref(false)
+const editingItemId = ref<number | null>(null)
+
+const newItem = ref({
+  item_name: '',
+  description: '',
+  quantity: 1,
+  condition: 'good' as string,
+  notes: '',
+})
+
+const editItem = ref({
+  item_name: '',
+  description: '',
+  quantity: 1,
+  condition: 'good' as string,
+  notes: '',
+})
+
+function conditionLabel(condition: string): string {
+  switch (condition) {
+    case 'good':
+      return 'Bueno'
+    case 'fair':
+      return 'Regular'
+    case 'poor':
+      return 'Malo'
+    case 'replaced':
+      return 'Reemplazado'
+    default:
+      return condition
+  }
+}
+
+function conditionClass(condition: string): string {
+  switch (condition) {
+    case 'good':
+      return 'inv__condition--good'
+    case 'fair':
+      return 'inv__condition--fair'
+    case 'poor':
+      return 'inv__condition--poor'
+    case 'replaced':
+      return 'inv__condition--replaced'
+    default:
+      return ''
+  }
+}
+
+async function fetchInventory() {
+  inventoryLoading.value = true
+  try {
+    const res = await inventoryApi.getItems(propertyId.value)
+    inventoryItems.value = res.data
+  } catch {
+    inventoryItems.value = []
+  } finally {
+    inventoryLoading.value = false
+  }
+}
+
+async function submitNewItem() {
+  if (!newItem.value.item_name) return
+  try {
+    await inventoryApi.createItem(propertyId.value, {
+      item_name: newItem.value.item_name,
+      description: newItem.value.description || undefined,
+      quantity: newItem.value.quantity,
+      condition: newItem.value.condition,
+      notes: newItem.value.notes || undefined,
+    })
+    newItem.value = { item_name: '', description: '', quantity: 1, condition: 'good', notes: '' }
+    showNewItemForm.value = false
+    await fetchInventory()
+  } catch {
+    // ignore
+  }
+}
+
+function startEditing(item: PropertyInventoryItem) {
+  editingItemId.value = item.id
+  editItem.value = {
+    item_name: item.item_name,
+    description: item.description || '',
+    quantity: item.quantity,
+    condition: item.condition,
+    notes: item.notes || '',
+  }
+}
+
+function cancelEditing() {
+  editingItemId.value = null
+}
+
+async function saveEdit(itemId: number) {
+  try {
+    await inventoryApi.updateItem(propertyId.value, itemId, {
+      item_name: editItem.value.item_name,
+      description: editItem.value.description || undefined,
+      quantity: editItem.value.quantity,
+      condition: editItem.value.condition,
+      notes: editItem.value.notes || undefined,
+    })
+    editingItemId.value = null
+    await fetchInventory()
+  } catch {
+    // ignore
+  }
+}
+
+async function deleteInventoryItem(itemId: number) {
+  if (!confirm('Eliminar este articulo del inventario?')) return
+  try {
+    await inventoryApi.deleteItem(propertyId.value, itemId)
+    await fetchInventory()
   } catch {
     // ignore
   }

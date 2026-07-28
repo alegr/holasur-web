@@ -1,11 +1,17 @@
 const IMPORTER_URL = 'http://localhost:3100'
 const API_URL = 'http://localhost:8001/api'
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('holasur_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...getAuthHeaders(),
       ...options.headers,
     },
     ...options,
@@ -17,6 +23,154 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
   }
 
   return response.json() as Promise<T>
+}
+
+// Auth types and API
+export interface AuthUser {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
+export interface LoginResponse {
+  token: string
+  user: AuthUser
+}
+
+export const authApi = {
+  login(email: string, password: string): Promise<LoginResponse> {
+    return request<LoginResponse>(`${API_URL}/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+  },
+
+  logout(): Promise<{ message: string }> {
+    return request<{ message: string }>(`${API_URL}/logout`, {
+      method: 'POST',
+    })
+  },
+
+  getUser(): Promise<AuthUser> {
+    return request<AuthUser>(`${API_URL}/user`)
+  },
+}
+
+// Owner types
+export interface Owner {
+  id: number
+  avantio_id: string
+  name: string
+  email: string | null
+  phone: string | null
+  country: string | null
+  intranet_access: boolean
+  properties?: Property[]
+}
+
+export const ownerApi = {
+  getOwners(search?: string): Promise<{ data: Owner[]; total: number }> {
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
+    const query = params.toString()
+    return request<{ data: Owner[]; total: number }>(`${API_URL}/owners${query ? `?${query}` : ''}`)
+  },
+
+  getOwner(id: number): Promise<{ data: Owner }> {
+    return request<{ data: Owner }>(`${API_URL}/owners/${id}`)
+  },
+
+  createOwner(data: {
+    name: string
+    email?: string
+    phone?: string
+    country?: string
+  }): Promise<{ data: Owner }> {
+    return request<{ data: Owner }>(`${API_URL}/owners`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  updateOwner(
+    id: number,
+    data: Partial<{ name: string; email: string; phone: string; country: string }>,
+  ): Promise<{ data: Owner }> {
+    return request<{ data: Owner }>(`${API_URL}/owners/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+}
+
+// Property Inventory types
+export interface PropertyInventoryItem {
+  id: number
+  property_id: number
+  item_name: string
+  description: string | null
+  quantity: number
+  condition: 'good' | 'fair' | 'poor' | 'replaced'
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const inventoryApi = {
+  getItems(propertyId: number): Promise<{ data: PropertyInventoryItem[] }> {
+    return request<{ data: PropertyInventoryItem[] }>(
+      `${API_URL}/properties/${propertyId}/inventory`,
+    )
+  },
+
+  createItem(
+    propertyId: number,
+    data: {
+      item_name: string
+      description?: string
+      quantity: number
+      condition: string
+      notes?: string
+    },
+  ): Promise<{ data: PropertyInventoryItem }> {
+    return request<{ data: PropertyInventoryItem }>(
+      `${API_URL}/properties/${propertyId}/inventory`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      },
+    )
+  },
+
+  updateItem(
+    propertyId: number,
+    id: number,
+    data: Partial<{
+      item_name: string
+      description: string
+      quantity: number
+      condition: string
+      notes: string
+    }>,
+  ): Promise<{ data: PropertyInventoryItem }> {
+    return request<{ data: PropertyInventoryItem }>(
+      `${API_URL}/properties/${propertyId}/inventory/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      },
+    )
+  },
+
+  deleteItem(propertyId: number, id: number): Promise<{ message: string }> {
+    return request<{ message: string }>(
+      `${API_URL}/properties/${propertyId}/inventory/${id}`,
+      {
+        method: 'DELETE',
+      },
+    )
+  },
 }
 
 // Importer service (Node.js on port 3100)
@@ -849,6 +1003,51 @@ export interface GlobalPnl {
   }[]
 }
 
+// Owner list types
+export interface OwnerSummary {
+  id: number
+  name: string
+  email: string | null
+  phone: string | null
+  property_count: number
+  total_revenue: number
+  total_margin: number
+}
+
+// Proration types
+export interface ProrationItem {
+  property_id: number
+  property_name: string
+  share_percent: number
+  allocated_amount: number
+}
+
+export interface ProrationResponse {
+  data: ProrationItem[]
+  total_structural: number
+  method: string
+  month: string
+}
+
+// Standard cost types
+export interface StandardCostItem {
+  id?: number
+  property_id: number
+  cost_category_id: number
+  category_name?: string
+  standard_amount: number
+}
+
+// Deviation types
+export interface DeviationItem {
+  cost_category_id: number
+  category: string
+  standard: number
+  actual: number
+  deviation: number
+  deviation_percent: number
+}
+
 export const reportsApi = {
   getBookingPnl(id: number): Promise<BookingPnl> {
     return request<{ data: BookingPnl }>(`${API_URL}/reports/pnl/booking/${id}`).then((r) => r.data)
@@ -869,6 +1068,41 @@ export const reportsApi = {
   getOwnerPnl(ownerId: number, from?: string, to?: string): Promise<OwnerPnl> {
     return request<{ data: OwnerPnl }>(
       `${API_URL}/reports/pnl/owner/${ownerId}${dateParams(from, to)}`,
+    ).then((r) => r.data)
+  },
+
+  getOwners(from?: string, to?: string): Promise<OwnerSummary[]> {
+    return request<{ data: OwnerSummary[] }>(
+      `${API_URL}/reports/owners${dateParams(from, to)}`,
+    ).then((r) => r.data)
+  },
+
+  getProration(month: string, method: string): Promise<ProrationResponse> {
+    const params = new URLSearchParams({ month, method })
+    return request<ProrationResponse>(`${API_URL}/reports/proration?${params}`)
+  },
+
+  getStandardCosts(propertyId: number): Promise<StandardCostItem[]> {
+    return request<{ data: StandardCostItem[] }>(
+      `${API_URL}/standard-costs?property_id=${propertyId}`,
+    ).then((r) => r.data)
+  },
+
+  saveStandardCosts(
+    items: { property_id: number; cost_category_id: number; standard_amount: number }[],
+  ): Promise<{ message: string; saved: number }> {
+    return request<{ message: string; saved: number }>(`${API_URL}/standard-costs`, {
+      method: 'POST',
+      body: JSON.stringify({ items }),
+    })
+  },
+
+  getDeviations(propertyId: number, from?: string, to?: string): Promise<DeviationItem[]> {
+    const params = new URLSearchParams({ property_id: String(propertyId) })
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    return request<{ data: DeviationItem[] }>(
+      `${API_URL}/reports/deviations?${params}`,
     ).then((r) => r.data)
   },
 }

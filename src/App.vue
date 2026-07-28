@@ -1,13 +1,20 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { authApi } from '@/services/api'
 
 const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
 
-function handleLogout() {
-  localStorage.removeItem('holasur_logged_in')
+async function handleLogout() {
+  try {
+    await authApi.logout()
+  } catch {
+    // ignore logout errors
+  }
+  localStorage.removeItem('holasur_token')
+  localStorage.removeItem('holasur_user')
   router.push('/login')
 }
 
@@ -69,6 +76,10 @@ watch(() => route.path, () => {
         <RouterLink to="/reportes" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128200;</span>
           Reportes
+        </RouterLink>
+        <RouterLink to="/desvios" class="sidebar__link" @click="closeSidebar">
+          <span class="sidebar__icon">&#128203;</span>
+          Desvios
         </RouterLink>
         <RouterLink to="/analisis" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128202;</span>
