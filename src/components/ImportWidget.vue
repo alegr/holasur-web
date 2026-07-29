@@ -69,10 +69,12 @@ function startPolling() {
       const result = await importerApi.getStatus(sessionId.value)
       console.log('[ImportWidget] poll status:', result.status, 'ui:', status.value)
 
-      if (result.status === 'needs_login' && status.value !== 'needs_login' && status.value !== 'logging_in') {
+      if (result.status === 'needs_login' && status.value !== 'needs_login') {
         status.value = 'needs_login'
+        submitting.value = false
       } else if (result.status === 'needs_2fa' && status.value !== 'needs_2fa') {
         status.value = 'needs_2fa'
+        submitting.value = false
       } else if (result.status === 'logged_in') {
         if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
         status.value = 'importing'
