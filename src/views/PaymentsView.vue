@@ -228,19 +228,19 @@ onMounted(() => {
           {{ tab.label }}
         </button>
       </div>
-      <div class="payments__tab-actions">
-        <ImportWidget :entity="currentTabConfig.entity" @imported="onImported" />
-      </div>
     </div>
 
-    <!-- Search -->
-    <div class="payments__search">
-      <input
-        v-model="searchQuery"
-        type="text"
-        class="input"
-        placeholder="Buscar por referencia, propiedad, contraparte..."
-      />
+    <!-- Search + Import row -->
+    <div class="payments__toolbar">
+      <div class="payments__search">
+        <input
+          v-model="searchQuery"
+          type="text"
+          class="input"
+          placeholder="Buscar por referencia, propiedad, contraparte..."
+        />
+      </div>
+      <ImportWidget :entity="currentTabConfig.entity" @imported="onImported" />
     </div>
 
     <!-- Loading -->
@@ -454,8 +454,15 @@ onMounted(() => {
 }
 
 /* Search */
+.payments__toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .payments__search {
-  margin-bottom: 20px;
+  flex: 1;
 }
 
 .payments__search .input {

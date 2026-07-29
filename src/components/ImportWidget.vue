@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref, onUnmounted, computed } from 'vue'
 import { importerApi, importerAvailable, IMPORTER_URL } from '@/services/api'
-const importerUrl = IMPORTER_URL
 
 const props = defineProps<{
   entity: 'properties' | 'bookings' | 'payments_received' | 'payments_made' | 'payments_pending' | 'payments_outstanding'
 }>()
 
-const emit = defineEmits<{
-  imported: []
-}>()
+const emit = defineEmits<{ imported: [] }>()
 
 const entityLabels: Record<string, string> = {
   properties: 'propiedades',
@@ -19,102 +16,75 @@ const entityLabels: Record<string, string> = {
   payments_pending: 'pagos pendientes',
   payments_outstanding: 'cuentas por cobrar',
 }
-
 const entityLabel = computed(() => entityLabels[props.entity] || props.entity)
 
-type WidgetStatus = 'idle' | 'starting' | 'waiting_for_login' | 'needs_2fa' | 'logged_in' | 'importing' | 'done' | 'error'
+type Status = 'idle' | 'starting' | 'waiting_for_login' | 'importing' | 'done' | 'error'
 
-const status = ref<WidgetStatus>('idle')
+const status = ref<Status>('idle')
 const sessionId = ref<string | null>(null)
 const error = ref<string | null>(null)
-const importedCount = ref<number>(0)
-const progressText = ref<string>('')
-const tfaCode = ref<string>('')
-const pollTimer = ref<ReturnType<typeof setInterval> | null>(null)
-const autoCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const importedCount = ref(0)
+const progressText = ref('')
+let pollTimer: ReturnType<typeof setInterval> | null = null
 
-function stopPolling() {
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value)
-    pollTimer.value = null
-  }
-}
-
-function clearAutoClose() {
-  if (autoCloseTimer.value) {
-    clearTimeout(autoCloseTimer.value)
-    autoCloseTimer.value = null
-  }
-}
-
-onUnmounted(() => {
-  stopPolling()
-  clearAutoClose()
-})
+onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
 async function startImport() {
-  status.value = 'starting'
   error.value = null
+
+  // Check for existing active session (recycle)
   try {
-    // Check for an existing active session first (reuse if logged in)
-    const activeRes = await fetch(`${importerUrl}/import/active`)
-    const active = await activeRes.json()
+    const res = await fetch(`${IMPORTER_URL}/import/active`)
+    const active = await res.json()
     if (active.active && active.sessionId) {
       sessionId.value = active.sessionId
       status.value = 'importing'
       await runEntityImport()
       return
     }
+  } catch { /* no active session */ }
 
-    // No active session — start a new one
+  // Start new session — opens browser window for login
+  status.value = 'starting'
+  try {
     const result = await importerApi.startImport()
     sessionId.value = result.sessionId
     status.value = 'waiting_for_login'
     startPolling()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Error al iniciar importación'
+    error.value = e instanceof Error ? e.message : 'Error al iniciar'
     status.value = 'error'
   }
 }
 
 function startPolling() {
-  stopPolling()
-  pollTimer.value = setInterval(async () => {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = setInterval(async () => {
     if (!sessionId.value) return
     try {
       const result = await importerApi.getStatus(sessionId.value)
-      if (result.status === 'needs_2fa' && status.value !== 'needs_2fa') {
-        status.value = 'needs_2fa'
-        // Don't stop polling — we'll submit the code and keep checking
-      } else if (result.status === 'logged_in' && (status.value === 'waiting_for_login' || status.value === 'needs_2fa')) {
-        stopPolling()
+
+      if (result.status === 'logged_in' && status.value === 'waiting_for_login') {
+        // Logged in — start import automatically
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
         status.value = 'importing'
         await runEntityImport()
       } else if (result.status === 'importing') {
-        const results = result.importResults || {}
-        const total = Object.values(results).reduce((a, b) => a + b, 0)
-        if (total > 0) progressText.value = `${total} registros encontrados...`
+        status.value = 'importing'
+        const total = Object.values(result.importResults || {}).reduce((a, b) => a + b, 0)
+        if (total > 0) progressText.value = `${total} registros...`
       } else if (result.status === 'done') {
-        stopPolling()
-        const results = result.importResults || {}
-        const total = Object.values(results).reduce((a, b) => a + b, 0)
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+        const total = Object.values(result.importResults || {}).reduce((a, b) => a + b, 0)
         importedCount.value = total
         status.value = 'done'
         emit('imported')
-        // Close browser window
-        setTimeout(async () => {
-          if (sessionId.value) {
-            try { await importerApi.stopImport(sessionId.value) } catch { /* ignore */ }
-          }
-        }, 2000)
       } else if (result.status === 'error') {
-        stopPolling()
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
         error.value = result.error || 'Error durante la importación'
         status.value = 'error'
       }
-    } catch (e) {
-      // Don't stop polling on transient errors
-    }
+    } catch { /* transient */ }
   }, 3000)
 }
 
@@ -129,129 +99,70 @@ async function runEntityImport() {
   }
 }
 
-async function stopSession() {
-  if (sessionId.value) {
-    try {
-      await importerApi.stopImport(sessionId.value)
-    } catch {
-      // Ignore stop errors
-    }
-  }
-  resetWidget()
-}
-
-function resetWidget() {
-  stopPolling()
-  clearAutoClose()
+function reset() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
   sessionId.value = null
   status.value = 'idle'
   error.value = null
   importedCount.value = 0
+  progressText.value = ''
 }
 
-async function cancel() {
-  stopPolling()
-  clearAutoClose()
+function cancel() {
   if (sessionId.value) {
-    try {
-      await importerApi.stopImport(sessionId.value)
-    } catch {
-      // Ignore
-    }
+    importerApi.stopImport(sessionId.value).catch(() => {})
   }
-  resetWidget()
-}
-
-async function submit2FA() {
-  if (!sessionId.value || !tfaCode.value) return
-  try {
-    await fetch(`${importerUrl}/import/${sessionId.value}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: tfaCode.value }),
-    })
-    tfaCode.value = ''
-    // Polling will detect logged_in status
-  } catch {
-    error.value = 'Error al enviar código'
-  }
-}
-
-function retry() {
-  resetWidget()
-  startImport()
+  reset()
 }
 </script>
 
 <template>
-  <div v-if="importerAvailable" class="import-widget">
+  <div v-if="importerAvailable" class="iw">
     <!-- Idle -->
-    <div v-if="status === 'idle'" class="import-widget__row">
+    <div v-if="status === 'idle'" class="iw__row">
       <button class="btn btn--primary btn--small" @click="startImport">
-        <span class="import-widget__icon">&#8635;</span>
-        Importar desde Avantio
+        &#8635; Importar desde Avantio
       </button>
     </div>
 
     <!-- Starting -->
-    <div v-else-if="status === 'starting'" class="import-widget__row import-widget__row--info">
+    <div v-else-if="status === 'starting'" class="iw__row iw__row--info">
       <span class="spinner spinner--small"></span>
-      <span>Iniciando sesión de importación...</span>
+      <span>Abriendo Avantio...</span>
     </div>
 
-    <!-- Waiting for login (auto-login in progress) -->
-    <div v-else-if="status === 'waiting_for_login'" class="import-widget__row import-widget__row--info">
+    <!-- Waiting for login -->
+    <div v-else-if="status === 'waiting_for_login'" class="iw__row iw__row--info">
       <span class="spinner spinner--small"></span>
-      <span>Iniciando sesión en Avantio automáticamente...</span>
-      <a class="import-widget__cancel" @click.prevent="cancel">Cancelar</a>
-    </div>
-
-    <!-- 2FA required -->
-    <div v-else-if="status === 'needs_2fa'" class="import-widget__row import-widget__row--info" style="flex-wrap: wrap; gap: 8px;">
-      <span>Avantio requiere código de verificación:</span>
-      <div style="display: flex; gap: 8px; align-items: center;">
-        <input
-          v-model="tfaCode"
-          type="text"
-          class="input"
-          placeholder="Código 2FA"
-          style="width: 140px; padding: 6px 10px; font-size: 0.9rem;"
-          @keyup.enter="submit2FA"
-        />
-        <button class="btn btn--primary btn--small" @click="submit2FA">Verificar</button>
-      </div>
-      <a class="import-widget__cancel" @click.prevent="cancel">Cancelar</a>
+      <span>Iniciá sesión en la ventana de Avantio</span>
+      <a class="iw__cancel" @click.prevent="cancel">Cancelar</a>
     </div>
 
     <!-- Importing -->
-    <div v-else-if="status === 'importing'" class="import-widget__row import-widget__row--info">
+    <div v-else-if="status === 'importing'" class="iw__row iw__row--info">
       <span class="spinner spinner--small"></span>
       <span>Importando {{ entityLabel }}... {{ progressText }}</span>
-      <a class="import-widget__cancel" @click.prevent="cancel">Cancelar</a>
+      <a class="iw__cancel" @click.prevent="cancel">Cancelar</a>
     </div>
 
     <!-- Done -->
-    <div v-else-if="status === 'done'" class="import-widget__row import-widget__row--success">
-      <span class="import-widget__check">&#10003;</span>
+    <div v-else-if="status === 'done'" class="iw__row iw__row--success">
+      <span>&#10003;</span>
       <span>Importación completada: {{ importedCount }} registros</span>
+      <a class="iw__cancel" @click.prevent="reset">Cerrar</a>
     </div>
 
     <!-- Error -->
-    <div v-else-if="status === 'error'" class="import-widget__row import-widget__row--error">
-      <span class="import-widget__cross">&#10007;</span>
-      <span>{{ error }}</span>
-      <button class="btn btn--primary btn--small" @click="retry">Reintentar</button>
-      <a class="import-widget__cancel" @click.prevent="resetWidget">Cerrar</a>
+    <div v-else-if="status === 'error'" class="iw__row iw__row--error">
+      <span>&#10007; {{ error }}</span>
+      <button class="btn btn--primary btn--small" @click="reset">Reintentar</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.import-widget {
-  margin-bottom: 16px;
-}
-
-.import-widget__row {
+.iw { margin-bottom: 16px; }
+.iw__row {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -261,57 +172,10 @@ function retry() {
   box-shadow: var(--shadow-sm);
   font-size: 0.9rem;
 }
-
-.import-widget__row--info {
-  background: var(--color-primary-lighter);
-  border-left: 3px solid var(--color-primary);
-}
-
-.import-widget__row--success {
-  background: #e4f3ed;
-  border-left: 3px solid var(--color-success);
-}
-
-.import-widget__row--error {
-  background: #fbeaea;
-  border-left: 3px solid var(--color-error);
-}
-
-.import-widget__icon {
-  font-size: 1.1rem;
-}
-
-.import-widget__check {
-  color: var(--color-success);
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-.import-widget__cross {
-  color: var(--color-error);
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-.import-widget__cancel {
-  margin-left: auto;
-  color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.import-widget__cancel:hover {
-  color: var(--color-error);
-}
-
-.btn--small {
-  padding: 6px 16px;
-  font-size: 0.85rem;
-}
-
-.spinner--small {
-  width: 18px;
-  height: 18px;
-  border-width: 2px;
-}
+.iw__row--info { background: var(--color-primary-lighter); border-left: 3px solid var(--color-primary); }
+.iw__row--success { background: #e8f8f0; border-left: 3px solid var(--color-success); }
+.iw__row--error { background: #fdecea; border-left: 3px solid var(--color-error); }
+.iw__cancel { margin-left: auto; color: var(--color-text-secondary); font-size: 0.85rem; cursor: pointer; }
+.iw__cancel:hover { color: var(--color-error); }
+.spinner--small { width: 18px; height: 18px; border-width: 2px; }
 </style>
