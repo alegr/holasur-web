@@ -30,7 +30,7 @@ const password = ref('')
 const tfaCode = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-const showModal = computed(() => status.value === 'needs_login' || status.value === 'needs_2fa' || status.value === 'logging_in')
+const showModal = computed(() => status.value === 'needs_login' || status.value === 'needs_2fa')
 
 onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
@@ -96,9 +96,11 @@ function startPolling() {
   }, 3000)
 }
 
+const submitting = ref(false)
+
 async function submitCredentials() {
   if (!sessionId.value || !email.value || !password.value) return
-  status.value = 'logging_in'
+  submitting.value = true
   error.value = null
   try {
     const res = await fetch(`${IMPORTER_URL}/import/${sessionId.value}/login`, {
@@ -115,17 +117,20 @@ async function submitCredentials() {
       status.value = 'needs_2fa'
     } else {
       status.value = 'needs_login'
-      error.value = 'Credenciales incorrectas'
+      error.value = data.error || 'Usuario o contraseña incorrectos'
     }
   } catch (e) {
-    error.value = 'Error al enviar credenciales'
+    error.value = 'Error de conexión al enviar credenciales'
     status.value = 'needs_login'
+  } finally {
+    submitting.value = false
   }
 }
 
 async function submit2FA() {
   if (!sessionId.value || !tfaCode.value) return
-  status.value = 'logging_in'
+  submitting.value = true
+  error.value = null
   try {
     const res = await fetch(`${IMPORTER_URL}/import/${sessionId.value}/login`, {
       method: 'POST',
@@ -140,8 +145,14 @@ async function submit2FA() {
       await runEntityImport()
     } else {
       status.value = 'needs_2fa'
+      error.value = data.error || 'Código incorrecto, intentá de nuevo'
     }
-  } catch { error.value = 'Error al verificar código' }
+  } catch {
+    error.value = 'Error de conexión al verificar código'
+    status.value = 'needs_2fa'
+  } finally {
+    submitting.value = false
+  }
 }
 
 async function runEntityImport() {
@@ -219,43 +230,43 @@ function cancel() {
             </div>
 
             <!-- Login form -->
-            <div v-if="status === 'needs_login' || (status === 'logging_in' && !tfaCode)" class="iw-modal__body">
+            <div v-if="status === 'needs_login'" class="iw-modal__body">
               <p class="iw-modal__desc">Ingresá tus credenciales de Avantio para continuar con la importación.</p>
               <p v-if="error" class="iw-modal__error">{{ error }}</p>
               <div class="iw-modal__fields">
                 <label class="iw-modal__label">
                   Email
-                  <input v-model="email" type="email" class="iw-modal__input" placeholder="tu@email.com" :disabled="status === 'logging_in'" @keyup.enter="submitCredentials" />
+                  <input v-model="email" type="email" class="iw-modal__input" placeholder="tu@email.com" :disabled="submitting" @keyup.enter="submitCredentials" />
                 </label>
                 <label class="iw-modal__label">
                   Contraseña
-                  <input v-model="password" type="password" class="iw-modal__input" placeholder="Contraseña" :disabled="status === 'logging_in'" @keyup.enter="submitCredentials" />
+                  <input v-model="password" type="password" class="iw-modal__input" placeholder="Contraseña" :disabled="submitting" @keyup.enter="submitCredentials" />
                 </label>
               </div>
               <div class="iw-modal__actions">
-                <button class="btn btn--secondary" @click="cancel" :disabled="status === 'logging_in'">Cancelar</button>
-                <button class="btn btn--primary" @click="submitCredentials" :disabled="status === 'logging_in'">
-                  <span v-if="status === 'logging_in'" class="spinner spinner--small spinner--white"></span>
-                  {{ status === 'logging_in' ? 'Ingresando...' : 'Iniciar sesión' }}
+                <button class="btn btn--secondary" @click="cancel" :disabled="submitting">Cancelar</button>
+                <button class="btn btn--primary" @click="submitCredentials" :disabled="submitting">
+                  <span v-if="submitting" class="spinner spinner--small spinner--white"></span>
+                  {{ submitting ? 'Ingresando...' : 'Iniciar sesión' }}
                 </button>
               </div>
             </div>
 
             <!-- 2FA form -->
-            <div v-else-if="status === 'needs_2fa' || status === 'logging_in'" class="iw-modal__body">
+            <div v-else-if="status === 'needs_2fa'" class="iw-modal__body">
               <p class="iw-modal__desc">Ingresá el código de verificación que recibiste.</p>
               <p v-if="error" class="iw-modal__error">{{ error }}</p>
               <div class="iw-modal__fields">
                 <label class="iw-modal__label">
                   Código de verificación
-                  <input v-model="tfaCode" type="text" class="iw-modal__input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" :disabled="status === 'logging_in'" @keyup.enter="submit2FA" />
+                  <input v-model="tfaCode" type="text" class="iw-modal__input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" :disabled="submitting" @keyup.enter="submit2FA" />
                 </label>
               </div>
               <div class="iw-modal__actions">
-                <button class="btn btn--secondary" @click="cancel" :disabled="status === 'logging_in'">Cancelar</button>
-                <button class="btn btn--primary" @click="submit2FA" :disabled="status === 'logging_in'">
-                  <span v-if="status === 'logging_in'" class="spinner spinner--small spinner--white"></span>
-                  {{ status === 'logging_in' ? 'Verificando...' : 'Verificar' }}
+                <button class="btn btn--secondary" @click="cancel" :disabled="submitting">Cancelar</button>
+                <button class="btn btn--primary" @click="submit2FA" :disabled="submitting">
+                  <span v-if="submitting" class="spinner spinner--small spinner--white"></span>
+                  {{ submitting ? 'Verificando...' : 'Verificar' }}
                 </button>
               </div>
             </div>
