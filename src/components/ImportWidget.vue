@@ -218,60 +218,45 @@ function cancel() {
       <button class="btn btn--primary btn--small" @click="reset">Reintentar</button>
     </div>
 
-    <!-- Login / 2FA Modal -->
+    <!-- Login / 2FA Modal (Avantio-styled) -->
     <Teleport to="body">
       <Transition name="modal">
-        <div v-if="showModal" class="iw-modal-backdrop" @click.self="cancel">
-          <div class="iw-modal">
-            <!-- Header -->
-            <div class="iw-modal__header">
-              <h3 class="iw-modal__title">
-                {{ status === 'needs_2fa' ? 'Verificación en dos pasos' : 'Iniciar sesión en Avantio' }}
-              </h3>
-              <button class="iw-modal__close" @click="cancel">&times;</button>
+        <div v-if="showModal" class="av-backdrop" @click.self="cancel">
+          <div class="av-card">
+            <!-- Avantio logo -->
+            <div class="av-logo">
+              <img src="/avantio-logo.svg" alt="Avantio" />
             </div>
+
+            <h3 class="av-heading">{{ status === 'needs_2fa' ? 'VERIFICACION' : 'LOGIN' }}</h3>
+
+            <p v-if="error" class="av-error">{{ error }}</p>
 
             <!-- Login form -->
-            <div v-if="status === 'needs_login'" class="iw-modal__body">
-              <p class="iw-modal__desc">Ingresá tus credenciales de Avantio para continuar con la importación.</p>
-              <p v-if="error" class="iw-modal__error">{{ error }}</p>
-              <div class="iw-modal__fields">
-                <label class="iw-modal__label">
-                  Email
-                  <input v-model="email" type="email" class="iw-modal__input" placeholder="tu@email.com" :disabled="submitting" @keyup.enter="submitCredentials" />
-                </label>
-                <label class="iw-modal__label">
-                  Contraseña
-                  <input v-model="password" type="password" class="iw-modal__input" placeholder="Contraseña" :disabled="submitting" @keyup.enter="submitCredentials" />
-                </label>
+            <template v-if="status === 'needs_login'">
+              <div class="av-fields">
+                <input v-model="email" type="email" class="av-input" placeholder="User's email" :disabled="submitting" @keyup.enter="submitCredentials" />
+                <input v-model="password" type="password" class="av-input" placeholder="Password" :disabled="submitting" @keyup.enter="submitCredentials" />
               </div>
-              <div class="iw-modal__actions">
-                <button class="btn btn--secondary" @click="cancel" :disabled="submitting">Cancelar</button>
-                <button class="btn btn--primary" @click="submitCredentials" :disabled="submitting">
-                  <span v-if="submitting" class="spinner spinner--small spinner--white"></span>
-                  {{ submitting ? 'Ingresando...' : 'Iniciar sesión' }}
-                </button>
-              </div>
-            </div>
+              <button class="av-btn" @click="submitCredentials" :disabled="submitting">
+                <span v-if="submitting" class="spinner spinner--small spinner--white"></span>
+                {{ submitting ? 'LOGGING IN...' : 'LOGIN' }}
+              </button>
+              <button class="av-cancel" @click="cancel" :disabled="submitting">Cancelar</button>
+            </template>
 
             <!-- 2FA form -->
-            <div v-else-if="status === 'needs_2fa'" class="iw-modal__body">
-              <p class="iw-modal__desc">Ingresá el código de verificación que recibiste.</p>
-              <p v-if="error" class="iw-modal__error">{{ error }}</p>
-              <div class="iw-modal__fields">
-                <label class="iw-modal__label">
-                  Código de verificación
-                  <input v-model="tfaCode" type="text" class="iw-modal__input" placeholder="123456" inputmode="numeric" autocomplete="one-time-code" :disabled="submitting" @keyup.enter="submit2FA" />
-                </label>
+            <template v-else-if="status === 'needs_2fa'">
+              <p class="av-desc">Ingresá el código de verificación de tu app de autenticación.</p>
+              <div class="av-fields">
+                <input v-model="tfaCode" type="text" class="av-input" placeholder="Verification code" inputmode="numeric" autocomplete="one-time-code" :disabled="submitting" @keyup.enter="submit2FA" />
               </div>
-              <div class="iw-modal__actions">
-                <button class="btn btn--secondary" @click="cancel" :disabled="submitting">Cancelar</button>
-                <button class="btn btn--primary" @click="submit2FA" :disabled="submitting">
-                  <span v-if="submitting" class="spinner spinner--small spinner--white"></span>
-                  {{ submitting ? 'Verificando...' : 'Verificar' }}
-                </button>
-              </div>
-            </div>
+              <button class="av-btn" @click="submit2FA" :disabled="submitting">
+                <span v-if="submitting" class="spinner spinner--small spinner--white"></span>
+                {{ submitting ? 'VERIFYING...' : 'VERIFY' }}
+              </button>
+              <button class="av-cancel" @click="cancel" :disabled="submitting">Cancelar</button>
+            </template>
           </div>
         </div>
       </Transition>
@@ -298,8 +283,8 @@ function cancel() {
 .iw__cancel:hover { color: var(--color-error); }
 .spinner--small { width: 18px; height: 18px; border-width: 2px; }
 
-/* Modal */
-.iw-modal-backdrop {
+/* Modal — Avantio login replica */
+.av-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -308,89 +293,96 @@ function cancel() {
   justify-content: center;
   z-index: 1000;
 }
-.iw-modal {
-  background: var(--color-surface, #fff);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+.av-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   margin: 16px;
-  overflow: hidden;
+  padding: 40px 48px 32px;
+  text-align: center;
 }
-.iw-modal__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px 0;
+.av-logo { margin-bottom: 16px; }
+.av-logo img { height: 48px; width: auto; }
+.av-heading {
+  margin: 0 0 24px;
+  font-size: 1rem;
+  font-weight: 400;
+  color: #999;
+  letter-spacing: 2px;
 }
-.iw-modal__title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--color-text, #1a1a1a);
-}
-.iw-modal__close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--color-text-secondary, #888);
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-}
-.iw-modal__close:hover { color: var(--color-error, #e53935); }
-.iw-modal__body { padding: 16px 24px 24px; }
-.iw-modal__desc {
+.av-desc {
   font-size: 0.88rem;
-  color: var(--color-text-secondary, #666);
+  color: #888;
+  margin: -8px 0 20px;
+  line-height: 1.5;
+}
+.av-error {
+  color: #c0392b;
+  font-size: 0.85rem;
   margin: 0 0 16px;
+  padding: 10px 14px;
+  background: #fdf0ef;
+  border-radius: 4px;
+  text-align: left;
 }
-.iw-modal__error {
-  color: var(--color-error, #e53935);
-  font-size: 0.85rem;
-  margin: 0 0 12px;
-  padding: 8px 12px;
-  background: #fdecea;
-  border-radius: 6px;
-}
-.iw-modal__fields {
+.av-fields {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-bottom: 20px;
+  gap: 16px;
+  margin-bottom: 28px;
+  text-align: left;
 }
-.iw-modal__label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text, #1a1a1a);
-}
-.iw-modal__input {
-  padding: 10px 12px;
-  border: 1px solid var(--color-border, #ddd);
-  border-radius: 8px;
-  font-size: 0.9rem;
+.av-input {
+  padding: 14px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 0.95rem;
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s;
+  color: #333;
+  background: #fff;
 }
-.iw-modal__input:focus {
+.av-input::placeholder { color: #bbb; font-weight: 300; }
+.av-input:focus {
   outline: none;
-  border-color: var(--color-primary, #16463f);
-  box-shadow: 0 0 0 3px rgba(22, 70, 63, 0.1);
+  border-color: #5bbad5;
+  box-shadow: 0 0 0 2px rgba(91, 186, 213, 0.25);
 }
-.iw-modal__input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.av-input:disabled { opacity: 0.5; cursor: not-allowed; background: #f9f9f9; }
+.av-btn {
+  width: 100%;
+  padding: 14px;
+  background: #d4553a;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
-.iw-modal__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+.av-btn:hover:not(:disabled) { background: #c04a32; }
+.av-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.av-cancel {
+  width: 100%;
+  padding: 10px;
+  background: none;
+  color: #aaa;
+  border: none;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 12px;
 }
-.iw-modal__actions .btn { min-width: 120px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.av-cancel:hover { color: #c0392b; }
+.av-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 .spinner--white { border-color: rgba(255,255,255,0.3); border-top-color: #fff; }
 
 /* Transitions */
