@@ -69,6 +69,10 @@ watch(() => route.path, () => {
           <span class="sidebar__icon">&#128179;</span>
           Pagos
         </RouterLink>
+        <RouterLink to="/facturas" class="sidebar__link" @click="closeSidebar">
+          <span class="sidebar__icon">&#128196;</span>
+          Facturas
+        </RouterLink>
         <RouterLink to="/costes" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128176;</span>
           Costes

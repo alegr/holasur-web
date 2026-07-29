@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { reportsApi, type OwnerSummary, type OwnerPnl } from '@/services/api'
+import ImportWidget from '@/components/ImportWidget.vue'
 
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -57,6 +58,8 @@ onMounted(fetchOwners)
         <p class="owners__subtitle">Listado de propietarios con resumen financiero</p>
       </div>
     </div>
+
+    <ImportWidget entity="owners" @imported="fetchOwners" />
 
     <div v-if="loading" class="owners__status card">
       <span class="spinner spinner--large"></span>

@@ -56,6 +56,11 @@ const router = createRouter({
       component: () => import('../views/PaymentsView.vue'),
     },
     {
+      path: '/facturas',
+      name: 'facturas',
+      component: () => import('../views/InvoicesView.vue'),
+    },
+    {
       path: '/analisis',
       name: 'analisis',
       component: () => import('../views/AnalyticsView.vue'),
