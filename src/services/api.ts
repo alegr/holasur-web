@@ -1,9 +1,10 @@
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-export const IMPORTER_URL = isLocalhost ? 'http://localhost:3100' : `${window.location.origin}/importer`
+// Importer always runs locally on the user's machine (needs visible browser)
+export const IMPORTER_URL = 'http://localhost:3100'
 const API_URL = isLocalhost ? 'http://localhost:8001/api' : '/api'
 
-// Importer only available locally (needs visible browser for Avantio login)
-export const importerAvailable = isLocalhost
+// Import buttons always visible — importer runs on user's Mac
+export const importerAvailable = true
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('holasur_token')
