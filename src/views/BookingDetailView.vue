@@ -7,11 +7,19 @@ import {
   importerAvailable,
   reportsApi,
   operationalApi,
+  IMPORTER_URL,
   type Booking,
   type BookingPnl,
   type BookingOperation,
 } from '@/services/api'
+
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8001/api' : '/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
+import AvantioLoginModal from '@/components/AvantioLoginModal.vue'
+import { useAvantioSession } from '@/composables/useAvantioSession'
+
+const avantio = useAvantioSession()
 
 const route = useRoute()
 const bookingId = computed(() => Number(route.params.id))
@@ -23,6 +31,30 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const updating = ref(false)
 const updateMessage = ref<string | null>(null)
+
+// Services
+interface BookingServiceItem {
+  id: number
+  category: string
+  concept: string
+  price_label: string | null
+  quantity: string | null
+  tax: string | null
+  total: string
+  currency: string
+  charge_moment: string | null
+}
+const services = ref<BookingServiceItem[]>([])
+const servicesLoading = ref(false)
+
+async function fetchServices() {
+  servicesLoading.value = true
+  try {
+    const res = await fetch(`${API_URL}/bookings/${bookingId.value}/services`)
+    if (res.ok) services.value = await res.json()
+  } catch { /* ignore */ }
+  finally { servicesLoading.value = false }
+}
 
 // Operative record state
 const operation = ref<BookingOperation | null>(null)
@@ -295,34 +327,25 @@ async function updateFromAvantio() {
   updating.value = true
   updateMessage.value = 'Conectando con Avantio...'
   try {
-    let sessionId: string
-    const active = await importerApi.getActiveSession()
-    if (active.active && active.sessionId) {
-      sessionId = active.sessionId
-    } else {
-      updateMessage.value = 'Abriendo Avantio... Inicia sesión en la ventana del navegador'
-      const session = await importerApi.startImport()
-      sessionId = session.sessionId
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 3000))
-        const status = await importerApi.getStatus(sessionId)
-        if (status.status === 'logged_in' || status.status === 'done') break
-        if (status.status === 'error') throw new Error(status.error || 'Error de login')
-      }
-    }
+    const sessionId = await avantio.getSession()
     updateMessage.value = 'Importando detalle de reserva...'
     await importerApi.importDetail(sessionId, 'bookings', booking.value?.avantio_id || undefined)
     updateMessage.value = 'Actualizado correctamente'
     await fetchBooking()
+    await fetchServices()
     setTimeout(() => { updateMessage.value = null }, 3000)
   } catch (e) {
-    updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+    if (e instanceof Error && e.message === 'Cancelled') {
+      updateMessage.value = null
+    } else {
+      updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+    }
   } finally {
     updating.value = false
   }
 }
 
-onMounted(fetchBooking)
+onMounted(() => { fetchBooking(); fetchServices() })
 </script>
 
 <template>
@@ -434,6 +457,37 @@ onMounted(fetchBooking)
             </span>
           </div>
         </div>
+      </div>
+
+      <!-- Services / Amounts breakdown -->
+      <div v-if="services.length > 0" class="card detail__section">
+        <h3 class="detail__section-title">Desglose de importes</h3>
+        <table class="services__table">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th>Precio</th>
+              <th>Cantidad</th>
+              <th>Impuesto</th>
+              <th class="text--right">Total</th>
+              <th>Cobro</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in services" :key="s.id" :class="{ 'services__row--property': s.category === 'property' }">
+              <td class="services__concept">{{ s.concept }}</td>
+              <td>{{ s.price_label || '--' }}</td>
+              <td>{{ s.quantity || '--' }}</td>
+              <td>{{ s.tax || '--' }}</td>
+              <td class="text--right services__total">{{ formatAmount(Number(s.total), s.currency) }}</td>
+              <td class="services__charge">{{ s.charge_moment || '' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else-if="servicesLoading" class="card detail__section">
+        <h3 class="detail__section-title">Desglose de importes</h3>
+        <div class="detail__empty"><span class="spinner spinner--small"></span> Cargando...</div>
       </div>
 
       <!-- Quick Cost Widget -->
@@ -724,10 +778,22 @@ onMounted(fetchBooking)
         </div>
       </div>
     </template>
+
+    <AvantioLoginModal />
   </div>
 </template>
 
 <style scoped>
+/* Services table */
+.services__table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.services__table th { text-align: left; padding: 8px 10px; font-weight: 500; color: var(--color-text-secondary); border-bottom: 2px solid var(--color-border); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.services__table td { padding: 8px 10px; border-bottom: 1px solid var(--color-border-light, #f0f0f0); }
+.services__row--property { font-weight: 500; }
+.services__concept { max-width: 250px; }
+.services__total { font-weight: 500; }
+.services__charge { color: var(--color-text-secondary); font-size: 0.82rem; }
+.text--right { text-align: right; }
+
 .detail__loading,
 .detail__error {
   display: flex;

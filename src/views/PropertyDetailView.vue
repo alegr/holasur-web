@@ -19,6 +19,10 @@ import {
   type PropertyInventoryItem,
 } from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
+import AvantioLoginModal from '@/components/AvantioLoginModal.vue'
+import { useAvantioSession } from '@/composables/useAvantioSession'
+
+const avantio = useAvantioSession()
 
 const route = useRoute()
 const propertyId = computed(() => Number(route.params.id))
@@ -484,30 +488,18 @@ async function updateFromAvantio() {
   updating.value = true
   updateMessage.value = 'Conectando con Avantio...'
   try {
-    // Check for active session or start new one
-    let sessionId: string
-    const active = await importerApi.getActiveSession()
-    if (active.active && active.sessionId) {
-      sessionId = active.sessionId
-    } else {
-      updateMessage.value = 'Abriendo Avantio... Inicia sesión en la ventana del navegador'
-      const session = await importerApi.startImport()
-      sessionId = session.sessionId
-      // Poll for login
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 3000))
-        const status = await importerApi.getStatus(sessionId)
-        if (status.status === 'logged_in' || status.status === 'done') break
-        if (status.status === 'error') throw new Error(status.error || 'Error de login')
-      }
-    }
+    const sessionId = await avantio.getSession()
     updateMessage.value = 'Importando detalle de propiedad...'
     await importerApi.importDetail(sessionId, 'properties', property.value?.avantio_id || undefined)
     updateMessage.value = 'Actualizado correctamente'
     await fetchData()
     setTimeout(() => { updateMessage.value = null }, 3000)
   } catch (e) {
-    updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+    if (e instanceof Error && e.message === 'Cancelled') {
+      updateMessage.value = null
+    } else {
+      updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+    }
   } finally {
     updating.value = false
   }
@@ -1222,6 +1214,8 @@ onMounted(fetchData)
         </div>
       </div>
     </template>
+
+    <AvantioLoginModal />
   </div>
 </template>
 
