@@ -65,6 +65,7 @@ watch(() => route.path, () => {
           <span class="sidebar__icon">&#128197;</span>
           Reservas
         </RouterLink>
+        <!-- Hidden until ready:
         <RouterLink to="/pagos" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128179;</span>
           Pagos
@@ -89,6 +90,7 @@ watch(() => route.path, () => {
           <span class="sidebar__icon">&#128202;</span>
           Analisis
         </RouterLink>
+        -->
       </nav>
       <div class="sidebar__footer">
         <button class="sidebar__logout" @click="handleLogout">
