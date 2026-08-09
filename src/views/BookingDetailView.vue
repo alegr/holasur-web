@@ -43,18 +43,110 @@ interface BookingServiceItem {
   total: string
   currency: string
   charge_moment: string | null
+  service_catalog_id: number | null
+  unit_cost: string | null
+  cost_units: string | null
+  total_cost: string | null
+  cost_override: boolean
+}
+interface CatalogItem {
+  id: number
+  name: string
+  category: string
+  default_unit_cost: string | null
+  cost_unit: string
+  default_unit_price: string | null
+  is_active: boolean
 }
 const services = ref<BookingServiceItem[]>([])
+const catalog = ref<CatalogItem[]>([])
 const servicesLoading = ref(false)
+const servicesEditing = ref(false)
+const servicesSaving = ref(false)
+const newServiceConcept = ref('')
 
 async function fetchServices() {
   servicesLoading.value = true
   try {
-    const res = await fetch(`${API_URL}/bookings/${bookingId.value}/services`)
-    if (res.ok) services.value = await res.json()
+    const [svcRes, catRes] = await Promise.all([
+      fetch(`${API_URL}/bookings/${bookingId.value}/services`),
+      fetch(`${API_URL}/service-catalog`),
+    ])
+    if (svcRes.ok) services.value = await svcRes.json()
+    if (catRes.ok) catalog.value = await catRes.json()
   } catch { /* ignore */ }
   finally { servicesLoading.value = false }
 }
+
+function recalcCost(s: BookingServiceItem) {
+  if (s.unit_cost && s.cost_units) {
+    s.total_cost = String((Number(s.unit_cost) * Number(s.cost_units)).toFixed(2))
+    s.cost_override = true
+  }
+}
+
+function addService() {
+  if (!newServiceConcept.value) return
+  const cat = catalog.value.find(c => c.name === newServiceConcept.value)
+  services.value.push({
+    id: 0,
+    category: 'service',
+    concept: newServiceConcept.value,
+    price_label: null,
+    quantity: null,
+    tax: null,
+    total: '0',
+    currency: 'USD',
+    charge_moment: null,
+    service_catalog_id: cat?.id || null,
+    unit_cost: cat?.default_unit_cost || null,
+    cost_units: '1',
+    total_cost: cat?.default_unit_cost || null,
+    cost_override: false,
+  })
+  newServiceConcept.value = ''
+}
+
+function removeService(idx: number) {
+  services.value.splice(idx, 1)
+}
+
+async function saveServices() {
+  servicesSaving.value = true
+  try {
+    const data = services.value.map(s => ({
+      category: s.category,
+      concept: s.concept,
+      price_label: s.price_label,
+      quantity: s.quantity,
+      tax: s.tax,
+      total: Number(s.total) || 0,
+      currency: s.currency,
+      charge_moment: s.charge_moment,
+      service_catalog_id: s.service_catalog_id,
+      unit_cost: s.unit_cost ? Number(s.unit_cost) : null,
+      cost_units: s.cost_units ? Number(s.cost_units) : null,
+      total_cost: s.total_cost ? Number(s.total_cost) : null,
+      cost_override: s.cost_override,
+    }))
+    const res = await fetch(`${API_URL}/bookings/${bookingId.value}/services`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data, replace: true }),
+    })
+    if (res.ok) {
+      servicesEditing.value = false
+      await fetchServices()
+    }
+  } catch { /* ignore */ }
+  finally { servicesSaving.value = false }
+}
+
+const availableServices = computed(() =>
+  catalog.value
+    .filter(c => c.is_active && !services.value.some(s => s.concept === c.name))
+    .map(c => c.name)
+)
 
 // Operative record state
 const operation = ref<BookingOperation | null>(null)
@@ -460,30 +552,86 @@ onMounted(() => { fetchBooking(); fetchServices() })
       </div>
 
       <!-- Services / Amounts breakdown -->
-      <div v-if="services.length > 0" class="card detail__section">
-        <h3 class="detail__section-title">Desglose de importes</h3>
+      <div v-if="services.length > 0 || servicesEditing" class="card detail__section">
+        <div class="detail__section-header">
+          <h3 class="detail__section-title">Desglose de importes</h3>
+          <div class="detail__section-actions">
+            <button v-if="!servicesEditing" class="btn btn--secondary btn--small" @click="servicesEditing = true">Editar costos</button>
+            <template v-else>
+              <button class="btn btn--primary btn--small" :disabled="servicesSaving" @click="saveServices">
+                {{ servicesSaving ? 'Guardando...' : 'Guardar' }}
+              </button>
+              <button class="btn btn--secondary btn--small" @click="servicesEditing = false; fetchServices()">Cancelar</button>
+            </template>
+          </div>
+        </div>
         <table class="services__table">
           <thead>
             <tr>
               <th>Concepto</th>
-              <th>Precio</th>
+              <th>Precio (Avantio)</th>
               <th>Cantidad</th>
-              <th>Impuesto</th>
-              <th class="text--right">Total</th>
-              <th>Cobro</th>
+              <th class="text--right">Ingreso</th>
+              <th v-if="servicesEditing || services.some(s => s.unit_cost)" class="text--right">Costo unit.</th>
+              <th v-if="servicesEditing || services.some(s => s.cost_units)" class="text--right">Unidades</th>
+              <th v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">Costo total</th>
+              <th v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">Margen</th>
+              <th v-if="servicesEditing"></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="s in services" :key="s.id" :class="{ 'services__row--property': s.category === 'property' }">
+            <tr v-for="(s, idx) in services" :key="s.id || idx" :class="{ 'services__row--property': s.category === 'property' }">
               <td class="services__concept">{{ s.concept }}</td>
               <td>{{ s.price_label || '--' }}</td>
               <td>{{ s.quantity || '--' }}</td>
-              <td>{{ s.tax || '--' }}</td>
               <td class="text--right services__total">{{ formatAmount(Number(s.total), s.currency) }}</td>
-              <td class="services__charge">{{ s.charge_moment || '' }}</td>
+              <td v-if="servicesEditing || services.some(s => s.unit_cost)" class="text--right">
+                <input v-if="servicesEditing" v-model="s.unit_cost" type="number" step="0.01" class="services__input" @change="recalcCost(s)" />
+                <span v-else>{{ s.unit_cost ? formatAmount(Number(s.unit_cost)) : '--' }}</span>
+              </td>
+              <td v-if="servicesEditing || services.some(s => s.cost_units)" class="text--right">
+                <input v-if="servicesEditing" v-model="s.cost_units" type="number" step="0.01" class="services__input" @change="recalcCost(s)" />
+                <span v-else>{{ s.cost_units || '--' }}</span>
+              </td>
+              <td v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">
+                <input v-if="servicesEditing" v-model="s.total_cost" type="number" step="0.01" class="services__input services__input--cost" />
+                <span v-else>{{ s.total_cost ? formatAmount(Number(s.total_cost)) : '--' }}</span>
+              </td>
+              <td v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">
+                <span v-if="s.total_cost" :class="Number(s.total) - Number(s.total_cost) >= 0 ? 'text--positive' : 'text--negative'">
+                  {{ formatAmount(Number(s.total) - Number(s.total_cost)) }}
+                </span>
+                <span v-else>--</span>
+              </td>
+              <td v-if="servicesEditing">
+                <button class="services__remove" @click="removeService(idx)">&times;</button>
+              </td>
             </tr>
           </tbody>
+          <tfoot v-if="services.some(s => s.total_cost)">
+            <tr class="services__totals">
+              <td colspan="3"><strong>Totales</strong></td>
+              <td class="text--right"><strong>{{ formatAmount(services.reduce((a, s) => a + Number(s.total), 0)) }}</strong></td>
+              <td v-if="servicesEditing || services.some(s => s.unit_cost)"></td>
+              <td v-if="servicesEditing || services.some(s => s.cost_units)"></td>
+              <td class="text--right"><strong>{{ formatAmount(services.reduce((a, s) => a + Number(s.total_cost || 0), 0)) }}</strong></td>
+              <td class="text--right">
+                <strong :class="services.reduce((a, s) => a + Number(s.total) - Number(s.total_cost || 0), 0) >= 0 ? 'text--positive' : 'text--negative'">
+                  {{ formatAmount(services.reduce((a, s) => a + Number(s.total) - Number(s.total_cost || 0), 0)) }}
+                </strong>
+              </td>
+              <td v-if="servicesEditing"></td>
+            </tr>
+          </tfoot>
         </table>
+        <!-- Add service -->
+        <div v-if="servicesEditing" class="services__add">
+          <select v-model="newServiceConcept" class="services__select">
+            <option value="">+ Agregar servicio...</option>
+            <option v-for="name in availableServices" :key="name" :value="name">{{ name }}</option>
+          </select>
+          <button v-if="newServiceConcept" class="btn btn--primary btn--small" @click="addService">Agregar</button>
+        </div>
       </div>
       <div v-else-if="servicesLoading" class="card detail__section">
         <h3 class="detail__section-title">Desglose de importes</h3>
@@ -793,6 +941,17 @@ onMounted(() => { fetchBooking(); fetchServices() })
 .services__total { font-weight: 500; }
 .services__charge { color: var(--color-text-secondary); font-size: 0.82rem; }
 .text--right { text-align: right; }
+.services__input { width: 80px; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.85rem; text-align: right; }
+.services__input--cost { background: #fffde7; }
+.services__input:focus { outline: none; border-color: var(--color-primary); }
+.services__remove { background: none; border: none; color: var(--color-text-secondary); font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
+.services__remove:hover { color: var(--color-error); }
+.services__totals { border-top: 2px solid var(--color-border); }
+.services__totals td { padding-top: 10px; }
+.services__add { display: flex; gap: 8px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--color-border-light, #f0f0f0); }
+.services__select { padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.85rem; min-width: 200px; }
+.detail__section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.detail__section-actions { display: flex; gap: 8px; }
 
 .detail__loading,
 .detail__error {
