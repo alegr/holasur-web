@@ -46,6 +46,7 @@ function addService() {
     cost_unit: 'per_booking',
     default_unit_price: null,
     is_active: true,
+    is_from_avantio: false,
     _dirty: true,
   })
   newName.value = ''

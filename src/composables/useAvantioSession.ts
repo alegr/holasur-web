@@ -103,17 +103,12 @@ async function submitCredentials() {
     } else if (data.status === 'needs_2fa') {
       status.value = 'needs_2fa'
     } else {
-      // Only show error if we haven't already logged in via polling
-      if (status.value !== 'logged_in') {
-        status.value = 'needs_login'
-        error.value = data.error || 'Usuario o contraseña incorrectos'
-      }
+      status.value = 'needs_login'
+      error.value = data.error || 'Usuario o contraseña incorrectos'
     }
   } catch {
-    if (status.value !== 'logged_in') {
-      error.value = 'Error de conexión al enviar credenciales'
-      status.value = 'needs_login'
-    }
+    error.value = 'Error de conexión al enviar credenciales'
+    status.value = 'needs_login'
   } finally {
     submitting.value = false
   }

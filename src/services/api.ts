@@ -918,7 +918,11 @@ export interface BookingPnl {
     rent: number
     extras: number
     gross_total: number
-    hs_commission: number
+    hs_commission_percent: number | null
+    hs_rent_commission: number
+    hs_extras_revenue: number
+    owner_returns: { service: string; total: number; owner_percent: number; owner_amount: number }[]
+    hs_total_revenue: number
     platform_commission: number
   }
   costs: {
@@ -929,8 +933,7 @@ export interface BookingPnl {
     total_costs: number
   }
   margin: {
-    gross_margin: number
-    operating_margin: number
+    hs_revenue: number
     net_margin: number
     margin_percent: number
   }

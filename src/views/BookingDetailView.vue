@@ -147,7 +147,8 @@ function addService() {
 }
 
 function removeService(idx: number) {
-  if (!services.value[idx].is_from_avantio) {
+  const svc = services.value[idx]
+  if (svc && !svc.is_from_avantio) {
     services.value.splice(idx, 1)
   }
 }
