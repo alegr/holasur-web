@@ -65,6 +65,14 @@ watch(() => route.path, () => {
           <span class="sidebar__icon">&#128197;</span>
           Reservas
         </RouterLink>
+        <RouterLink to="/servicios" class="sidebar__link" @click="closeSidebar">
+          <span class="sidebar__icon">&#9881;</span>
+          Servicios
+        </RouterLink>
+        <RouterLink to="/costes" class="sidebar__link" @click="closeSidebar">
+          <span class="sidebar__icon">&#128176;</span>
+          Gastos generales
+        </RouterLink>
         <!-- Hidden until ready:
         <RouterLink to="/pagos" class="sidebar__link" @click="closeSidebar">
           <span class="sidebar__icon">&#128179;</span>

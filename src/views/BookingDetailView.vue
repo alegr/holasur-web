@@ -48,6 +48,9 @@ interface BookingServiceItem {
   cost_units: string | null
   total_cost: string | null
   cost_override: boolean
+  is_from_avantio: boolean
+  _previous_cost?: string | null // strikethrough value
+  _is_manual?: boolean // manually added, not from Avantio
 }
 interface CatalogItem {
   id: number
@@ -78,37 +81,75 @@ async function fetchServices() {
   finally { servicesLoading.value = false }
 }
 
+function onCostEdit(s: BookingServiceItem, newValue: string) {
+  // Track previous cost for strikethrough display
+  if (s.total_cost && s.total_cost !== newValue) {
+    s._previous_cost = s.total_cost
+  }
+  s.total_cost = newValue
+  s.cost_override = true
+}
+
+function resetCost(s: BookingServiceItem) {
+  // Recalculate quantity from the Avantio total and catalog unit price
+  const cat = catalog.value.find(c => c.id === s.service_catalog_id || c.name === s.concept)
+  const unitPrice = cat?.default_unit_price ? Number(cat.default_unit_price) : 0
+  const total = Number(s.total) || 0
+  const qty = unitPrice > 0 ? Math.round(total / unitPrice) : (s.quantity ? Number(s.quantity) : 1)
+  s.cost_units = String(qty)
+  if (s.unit_cost) {
+    s.total_cost = String((Number(s.unit_cost) * qty).toFixed(2))
+  }
+  s.cost_override = false
+  saveServices()
+}
+
 function recalcCost(s: BookingServiceItem) {
-  if (s.unit_cost && s.cost_units) {
-    s.total_cost = String((Number(s.unit_cost) * Number(s.cost_units)).toFixed(2))
-    s.cost_override = true
+  const qty = Number(s.cost_units) || 0
+  // Recalculate cost total
+  if (s.unit_cost) {
+    const newCost = String((Number(s.unit_cost) * qty).toFixed(2))
+    s.total_cost = newCost
+  }
+  // Recalculate price total for manual services
+  if (s._is_manual || !s.is_from_avantio) {
+    const cat = catalog.value.find(c => c.id === s.service_catalog_id || c.name === s.concept)
+    if (cat?.default_unit_price) {
+      s.total = String((Number(cat.default_unit_price) * qty).toFixed(2))
+    }
   }
 }
 
 function addService() {
   if (!newServiceConcept.value) return
   const cat = catalog.value.find(c => c.name === newServiceConcept.value)
+  const unitPrice = cat?.default_unit_price ? Number(cat.default_unit_price) : 0
+  const unitCost = cat?.default_unit_cost ? Number(cat.default_unit_cost) : 0
   services.value.push({
     id: 0,
     category: 'service',
     concept: newServiceConcept.value,
     price_label: null,
-    quantity: null,
+    quantity: '1',
     tax: null,
-    total: '0',
+    total: String(unitPrice),
     currency: 'USD',
     charge_moment: null,
     service_catalog_id: cat?.id || null,
-    unit_cost: cat?.default_unit_cost || null,
+    unit_cost: unitCost ? String(unitCost) : null,
     cost_units: '1',
-    total_cost: cat?.default_unit_cost || null,
+    total_cost: unitCost ? String(unitCost) : null,
     cost_override: false,
+    is_from_avantio: false,
+    _is_manual: true,
   })
   newServiceConcept.value = ''
 }
 
 function removeService(idx: number) {
-  services.value.splice(idx, 1)
+  if (!services.value[idx].is_from_avantio) {
+    services.value.splice(idx, 1)
+  }
 }
 
 async function saveServices() {
@@ -140,6 +181,12 @@ async function saveServices() {
     }
   } catch { /* ignore */ }
   finally { servicesSaving.value = false }
+}
+
+function catalogPrice(s: BookingServiceItem): string {
+  const cat = catalog.value.find(c => c.id === s.service_catalog_id || c.name === s.concept)
+  if (cat?.default_unit_price) return formatAmount(Number(cat.default_unit_price))
+  return '--'
 }
 
 const availableServices = computed(() =>
@@ -569,68 +616,66 @@ onMounted(() => { fetchBooking(); fetchServices() })
           <thead>
             <tr>
               <th>Concepto</th>
-              <th>Precio (Avantio)</th>
-              <th>Cantidad</th>
-              <th class="text--right">Ingreso</th>
-              <th v-if="servicesEditing || services.some(s => s.unit_cost)" class="text--right">Costo unit.</th>
-              <th v-if="servicesEditing || services.some(s => s.cost_units)" class="text--right">Unidades</th>
-              <th v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">Costo total</th>
-              <th v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">Margen</th>
+              <th class="text--right">Precio unitario</th>
+              <th class="text--right">Cantidad</th>
+              <th class="text--right">Precio total</th>
+              <th class="text--right">Costo unitario</th>
+              <th class="text--right">Costo total</th>
               <th v-if="servicesEditing"></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(s, idx) in services" :key="s.id || idx" :class="{ 'services__row--property': s.category === 'property' }">
               <td class="services__concept">{{ s.concept }}</td>
-              <td>{{ s.price_label || '--' }}</td>
-              <td>{{ s.quantity || '--' }}</td>
+              <td class="text--right">{{ catalogPrice(s) }}</td>
+              <td class="text--right">
+                <input v-if="servicesEditing" v-model="s.cost_units" type="number" step="1" min="0" class="services__input"
+                  @change="recalcCost(s)" />
+                <span v-else>{{ s.cost_units || s.quantity || '--' }}</span>
+              </td>
               <td class="text--right services__total">{{ formatAmount(Number(s.total), s.currency) }}</td>
-              <td v-if="servicesEditing || services.some(s => s.unit_cost)" class="text--right">
-                <input v-if="servicesEditing" v-model="s.unit_cost" type="number" step="0.01" class="services__input" @change="recalcCost(s)" />
-                <span v-else>{{ s.unit_cost ? formatAmount(Number(s.unit_cost)) : '--' }}</span>
+              <td class="text--right">
+                {{ s.unit_cost ? formatAmount(Number(s.unit_cost)) : '--' }}
               </td>
-              <td v-if="servicesEditing || services.some(s => s.cost_units)" class="text--right">
-                <input v-if="servicesEditing" v-model="s.cost_units" type="number" step="0.01" class="services__input" @change="recalcCost(s)" />
-                <span v-else>{{ s.cost_units || '--' }}</span>
-              </td>
-              <td v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">
-                <input v-if="servicesEditing" v-model="s.total_cost" type="number" step="0.01" class="services__input services__input--cost" />
-                <span v-else>{{ s.total_cost ? formatAmount(Number(s.total_cost)) : '--' }}</span>
-              </td>
-              <td v-if="servicesEditing || services.some(s => s.total_cost)" class="text--right">
-                <span v-if="s.total_cost" :class="Number(s.total) - Number(s.total_cost) >= 0 ? 'text--positive' : 'text--negative'">
-                  {{ formatAmount(Number(s.total) - Number(s.total_cost)) }}
-                </span>
-                <span v-else>--</span>
+              <td class="text--right">
+                <div v-if="servicesEditing" class="services__cost-edit">
+                  <span v-if="s.cost_override && s.unit_cost && s.cost_units" class="services__prev-cost">
+                    {{ formatAmount(Number(s.unit_cost) * Number(s.cost_units)) }}
+                  </span>
+                  <input v-model="s.total_cost" type="number" step="0.01" class="services__input services__input--cost"
+                    @change="onCostEdit(s, s.total_cost || '0')" />
+                </div>
+                <template v-else>
+                  <div v-if="s.cost_override && s.unit_cost && s.cost_units" class="services__cost-edit">
+                    <span class="services__prev-cost">{{ formatAmount(Number(s.unit_cost) * Number(s.cost_units)) }}</span>
+                    <span>{{ formatAmount(Number(s.total_cost)) }}</span>
+                    <button class="services__reset" @click="resetCost(s)" title="Volver al costo calculado">&#8634;</button>
+                  </div>
+                  <span v-else>{{ s.total_cost ? formatAmount(Number(s.total_cost)) : '--' }}</span>
+                </template>
               </td>
               <td v-if="servicesEditing">
-                <button class="services__remove" @click="removeService(idx)">&times;</button>
+                <button v-if="!s.is_from_avantio" class="services__remove" @click="removeService(idx)">&times;</button>
               </td>
             </tr>
           </tbody>
-          <tfoot v-if="services.some(s => s.total_cost)">
+          <tfoot>
             <tr class="services__totals">
-              <td colspan="3"><strong>Totales</strong></td>
-              <td class="text--right"><strong>{{ formatAmount(services.reduce((a, s) => a + Number(s.total), 0)) }}</strong></td>
-              <td v-if="servicesEditing || services.some(s => s.unit_cost)"></td>
-              <td v-if="servicesEditing || services.some(s => s.cost_units)"></td>
+              <td colspan="2"><strong>Totales</strong></td>
+              <td></td>
+              <td class="text--right"><strong>{{ formatAmount(services.reduce((a, s) => a + Number(s.total || 0), 0)) }}</strong></td>
+              <td></td>
               <td class="text--right"><strong>{{ formatAmount(services.reduce((a, s) => a + Number(s.total_cost || 0), 0)) }}</strong></td>
-              <td class="text--right">
-                <strong :class="services.reduce((a, s) => a + Number(s.total) - Number(s.total_cost || 0), 0) >= 0 ? 'text--positive' : 'text--negative'">
-                  {{ formatAmount(services.reduce((a, s) => a + Number(s.total) - Number(s.total_cost || 0), 0)) }}
-                </strong>
-              </td>
               <td v-if="servicesEditing"></td>
             </tr>
           </tfoot>
         </table>
         <!-- Add service -->
         <div v-if="servicesEditing" class="services__add">
-          <select v-model="newServiceConcept" class="services__select">
+          <select v-model="newServiceConcept" class="services__select" @change="addService">
             <option value="">+ Agregar servicio...</option>
             <option v-for="name in availableServices" :key="name" :value="name">{{ name }}</option>
           </select>
-          <button v-if="newServiceConcept" class="btn btn--primary btn--small" @click="addService">Agregar</button>
         </div>
       </div>
       <div v-else-if="servicesLoading" class="card detail__section">
@@ -654,75 +699,98 @@ onMounted(() => { fetchBooking(); fetchServices() })
         <div v-else-if="pnl" class="pnl">
           <table class="pnl__table">
             <tbody>
-              <!-- Ingresos -->
+              <!-- Datos de la reserva (contexto) -->
               <tr class="pnl__section-header">
-                <td colspan="2">Ingresos</td>
+                <td colspan="2">Datos de la reserva</td>
               </tr>
-              <tr class="pnl__row pnl__row--indent">
+              <tr class="pnl__row pnl__row--indent pnl__row--muted">
                 <td>Alquiler</td>
                 <td class="pnl__amount">{{ formatAmount(pnl.revenue.rent) }}</td>
               </tr>
-              <tr class="pnl__row pnl__row--indent">
+              <tr class="pnl__row pnl__row--indent pnl__row--muted">
                 <td>Extras</td>
                 <td class="pnl__amount">{{ formatAmount(pnl.revenue.extras) }}</td>
               </tr>
-              <tr class="pnl__row pnl__row--total">
-                <td>Total bruto</td>
+              <tr class="pnl__row pnl__row--indent pnl__row--muted">
+                <td>Total bruto reserva</td>
                 <td class="pnl__amount">{{ formatAmount(pnl.revenue.gross_total) }}</td>
               </tr>
 
-              <!-- Costos -->
+              <!-- Ingresos Hola Sur -->
               <tr class="pnl__section-header">
-                <td colspan="2">Costos</td>
+                <td colspan="2">Ingresos Hola Sur</td>
+              </tr>
+              <tr v-if="pnl.revenue.hs_commission_percent" class="pnl__row pnl__row--indent">
+                <td>Comisión alquiler ({{ pnl.revenue.hs_commission_percent }}%)</td>
+                <td class="pnl__amount pnl__amount--positive">{{ formatAmount(pnl.revenue.hs_rent_commission) }}</td>
+              </tr>
+              <tr v-else class="pnl__row pnl__row--indent pnl__row--warning">
+                <td colspan="2">
+                  <span class="pnl__warning">⚠ Comisión no definida — <router-link :to="'/propiedades/' + booking.property_id">actualizar propiedad</router-link></span>
+                </td>
               </tr>
               <tr class="pnl__row pnl__row--indent">
-                <td>Comision plataforma</td>
-                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.platform_commission) }}</td>
+                <td>Ingresos por servicios</td>
+                <td class="pnl__amount pnl__amount--positive">{{ formatAmount(pnl.revenue.hs_extras_revenue) }}</td>
               </tr>
-              <tr class="pnl__row pnl__row--indent">
-                <td>Costos directos</td>
-                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.direct_costs) }}</td>
-              </tr>
-              <template v-if="pnl.costs.direct_costs_breakdown.length > 0">
+              <template v-if="pnl.revenue.owner_returns?.length > 0">
                 <tr
-                  v-for="item in pnl.costs.direct_costs_breakdown"
-                  :key="item.category"
+                  v-for="ret in pnl.revenue.owner_returns"
+                  :key="'ret-' + ret.service"
+                  class="pnl__row pnl__row--indent2 pnl__row--muted"
+                >
+                  <td>{{ ret.service }} ({{ ret.owner_percent }}% propietario)</td>
+                  <td class="pnl__amount pnl__amount--cost">-{{ formatAmount(ret.owner_amount) }}</td>
+                </tr>
+              </template>
+              <tr class="pnl__row pnl__row--total">
+                <td>Total ingresos HS</td>
+                <td class="pnl__amount pnl__amount--positive">{{ formatAmount(pnl.revenue.hs_total_revenue) }}</td>
+              </tr>
+
+              <!-- Costos operativos -->
+              <tr class="pnl__section-header">
+                <td colspan="2">Costos operativos</td>
+              </tr>
+              <tr v-if="pnl.costs.service_costs > 0" class="pnl__row pnl__row--indent">
+                <td>Costos de servicios</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.service_costs) }}</td>
+              </tr>
+              <template v-if="pnl.costs.service_costs_breakdown?.length > 0">
+                <tr
+                  v-for="item in pnl.costs.service_costs_breakdown"
+                  :key="'svc-' + item.category"
                   class="pnl__row pnl__row--indent2"
                 >
                   <td>{{ item.category }}</td>
                   <td class="pnl__amount pnl__amount--cost">{{ formatAmount(item.amount) }}</td>
                 </tr>
               </template>
+              <tr v-if="pnl.costs.direct_costs > 0" class="pnl__row pnl__row--indent">
+                <td>Compras directas</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.direct_costs) }}</td>
+              </tr>
+              <template v-if="pnl.costs.direct_costs_breakdown?.length > 0">
+                <tr
+                  v-for="item in pnl.costs.direct_costs_breakdown"
+                  :key="'dc-' + item.category"
+                  class="pnl__row pnl__row--indent2"
+                >
+                  <td>{{ item.category }}</td>
+                  <td class="pnl__amount pnl__amount--cost">{{ formatAmount(item.amount) }}</td>
+                </tr>
+              </template>
+              <tr class="pnl__row pnl__row--total">
+                <td>Total costos</td>
+                <td class="pnl__amount pnl__amount--cost">{{ formatAmount(pnl.costs.total_costs) }}</td>
+              </tr>
 
-              <!-- Pagos -->
+              <!-- Resultado -->
               <tr class="pnl__section-header">
-                <td colspan="2">Pagos</td>
-              </tr>
-              <tr class="pnl__row pnl__row--indent">
-                <td>Pagado</td>
-                <td class="pnl__amount">{{ formatAmount(pnl.payments.paid) }}</td>
-              </tr>
-              <tr class="pnl__row pnl__row--indent">
-                <td>Pendiente</td>
-                <td class="pnl__amount" :class="pnl.payments.pending > 0 ? 'pnl__amount--cost' : ''">{{ formatAmount(pnl.payments.pending) }}</td>
-              </tr>
-              <tr class="pnl__row pnl__row--indent">
-                <td>Recibido (Avantio)</td>
-                <td class="pnl__amount">{{ formatAmount(pnl.payments.received) }}</td>
-              </tr>
-
-              <!-- Margenes -->
-              <tr class="pnl__section-header">
-                <td colspan="2">Margenes</td>
-              </tr>
-              <tr class="pnl__row pnl__row--indent">
-                <td>Margen bruto</td>
-                <td class="pnl__amount" :class="pnl.margin.gross_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
-                  {{ formatAmount(pnl.margin.gross_margin) }}
-                </td>
+                <td colspan="2">Resultado</td>
               </tr>
               <tr class="pnl__row pnl__row--total">
-                <td>Margen neto</td>
+                <td>Resultado neto</td>
                 <td class="pnl__amount" :class="pnl.margin.net_margin >= 0 ? 'pnl__amount--positive' : 'pnl__amount--negative'">
                   {{ formatAmount(pnl.margin.net_margin) }}
                 </td>
@@ -944,6 +1012,10 @@ onMounted(() => { fetchBooking(); fetchServices() })
 .services__input { width: 80px; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.85rem; text-align: right; }
 .services__input--cost { background: #fffde7; }
 .services__input:focus { outline: none; border-color: var(--color-primary); }
+.services__cost-edit { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.services__prev-cost { text-decoration: line-through; color: var(--color-text-secondary); font-size: 0.8rem; }
+.services__reset { background: none; border: none; color: var(--color-text-secondary); font-size: 0.9rem; cursor: pointer; padding: 0 2px; }
+.services__reset:hover { color: var(--color-primary); }
 .services__remove { background: none; border: none; color: var(--color-text-secondary); font-size: 1.2rem; cursor: pointer; padding: 0 4px; }
 .services__remove:hover { color: var(--color-error); }
 .services__totals { border-top: 2px solid var(--color-border); }
@@ -1223,6 +1295,20 @@ code {
 
 .pnl__amount--negative {
   color: var(--color-error);
+}
+
+.pnl__row--muted td {
+  color: #9ca3af;
+}
+
+.pnl__warning {
+  color: #b45309;
+  font-size: 0.85rem;
+}
+
+.pnl__warning a {
+  color: #b45309;
+  text-decoration: underline;
 }
 
 /* Operative record styles */

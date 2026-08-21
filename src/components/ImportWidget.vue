@@ -3,7 +3,7 @@ import { ref, onUnmounted, computed } from 'vue'
 import { importerApi, importerAvailable, IMPORTER_URL } from '@/services/api'
 
 const props = defineProps<{
-  entity: 'properties' | 'bookings' | 'payments_received' | 'payments_made' | 'payments_pending' | 'payments_outstanding' | 'owners' | 'invoices'
+  entity: 'properties' | 'bookings' | 'payments_received' | 'payments_made' | 'payments_pending' | 'payments_outstanding' | 'owners' | 'invoices' | 'service_catalog'
 }>()
 
 const emit = defineEmits<{ imported: [] }>()
@@ -17,6 +17,7 @@ const entityLabels: Record<string, string> = {
   payments_outstanding: 'cuentas por cobrar',
   owners: 'propietarios',
   invoices: 'facturas',
+  service_catalog: 'catálogo de servicios',
 }
 const entityLabel = computed(() => entityLabels[props.entity] || props.entity)
 

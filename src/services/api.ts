@@ -235,6 +235,7 @@ export interface Property {
   type: string | null
   location: string | null
   is_active: boolean
+  hs_commission_percent: number | null
   raw_data: Record<string, unknown> | null
 }
 
@@ -917,19 +918,19 @@ export interface BookingPnl {
     rent: number
     extras: number
     gross_total: number
+    hs_commission: number
+    platform_commission: number
   }
   costs: {
-    platform_commission: number
+    service_costs: number
+    service_costs_breakdown: { category: string; amount: number }[]
     direct_costs: number
     direct_costs_breakdown: { category: string; amount: number }[]
-  }
-  payments: {
-    paid: number
-    pending: number
-    received: number
+    total_costs: number
   }
   margin: {
     gross_margin: number
+    operating_margin: number
     net_margin: number
     margin_percent: number
   }

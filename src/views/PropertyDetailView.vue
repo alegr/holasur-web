@@ -27,10 +27,24 @@ const avantio = useAvantioSession()
 const route = useRoute()
 const propertyId = computed(() => Number(route.params.id))
 
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8001/api' : '/api'
+
 const property = ref<Property | null>(null)
 const bookings = ref<Booking[]>([])
 const purchases = ref<Purchase[]>([])
 const expenses = ref<Expense[]>([])
+interface PropertyServiceItem {
+  id: number
+  name: string
+  is_applicable: boolean
+  is_personalized: boolean
+  owner_return_percent: string | null
+  is_from_avantio: boolean
+}
+const propertyServices = ref<PropertyServiceItem[]>([])
+const contractServices = computed(() => propertyServices.value.filter(s => s.owner_return_percent))
+
 const profitability = ref<PropertyProfitability | null>(null)
 const propertyPnl = ref<PropertyPnl | null>(null)
 const pnlLoading = ref(false)
@@ -455,6 +469,11 @@ async function fetchData() {
       laravelApi.getExpenses({ property_id: propertyId.value }),
     ])
     property.value = propResult
+    // Fetch property services
+    try {
+      const svcRes = await fetch(`${API_URL}/properties/${propertyId.value}/services`)
+      if (svcRes.ok) propertyServices.value = await svcRes.json()
+    } catch { /* ignore */ }
     bookings.value = (bookingsResult.data || []).filter(
       (b) => b.property_id === propertyId.value || b.property?.id === propertyId.value,
     )
@@ -571,6 +590,12 @@ onMounted(fetchData)
             <span class="detail__value">{{ property.is_active ? 'Activo' : 'Desactivado' }}</span>
           </div>
           <div class="detail__field">
+            <span class="detail__label">Comisión Hola Sur</span>
+            <span class="detail__value">
+              {{ property.hs_commission_percent ? property.hs_commission_percent + '%' : 'Sin definir — importar desde Avantio' }}
+            </span>
+          </div>
+          <div class="detail__field">
             <span class="detail__label">ID Avantio</span>
             <span class="detail__value">
               <code>{{ property.avantio_id || '--' }}</code>
@@ -593,6 +618,25 @@ onMounted(fetchData)
             </div>
           </template>
         </div>
+      </div>
+
+      <!-- Servicios del contrato — solo los que tienen % retorno -->
+      <div v-if="contractServices.length > 0" class="card detail__section">
+        <h3 class="detail__section-title">Servicios del contrato</h3>
+        <table class="prop-svc__table">
+          <thead>
+            <tr>
+              <th>Servicio</th>
+              <th class="text--right">% Retorno propietario</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="svc in contractServices" :key="svc.id">
+              <td>{{ svc.name }}</td>
+              <td class="text--right">{{ svc.owner_return_percent }}%</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Quick Cost Widget -->
@@ -1220,6 +1264,17 @@ onMounted(fetchData)
 </template>
 
 <style scoped>
+.prop-svc__table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.prop-svc__table th { text-align: left; padding: 8px 10px; font-weight: 500; color: var(--color-text-secondary); border-bottom: 2px solid var(--color-border); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.prop-svc__table td { padding: 6px 10px; border-bottom: 1px solid var(--color-border-light, #f0f0f0); }
+.prop-svc__inactive { opacity: 0.5; }
+.text--right { text-align: right; }
+
+.detail__editable { cursor: pointer; color: var(--color-primary); border-bottom: 1px dashed var(--color-primary); }
+.detail__editable:hover { opacity: 0.8; }
+.detail__inline-edit { display: inline-flex; align-items: center; gap: 6px; }
+.detail__inline-input { width: 70px; padding: 4px 6px; border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.9rem; text-align: right; }
+
 .detail__loading,
 .detail__error {
   display: flex;
