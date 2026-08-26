@@ -520,6 +520,7 @@ export const laravelApi = {
       id: number
       date: string
       category: string
+      category_id: number | null
       amount: string
       currency: string
       note: string | null
