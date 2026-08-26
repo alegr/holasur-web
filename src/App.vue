@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/services/api'
+import ImportTracker from '@/components/ImportTracker.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -117,6 +118,7 @@ watch(() => route.path, () => {
       <main class="content">
         <RouterView />
       </main>
+      <ImportTracker />
     </div>
   </template>
 </template>
