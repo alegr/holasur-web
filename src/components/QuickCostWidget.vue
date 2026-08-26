@@ -32,6 +32,7 @@ interface RecentCost {
   id: number
   date: string
   category: string
+  category_id: number | null
   amount: string
   currency: string
   note: string | null
@@ -39,6 +40,11 @@ interface RecentCost {
 }
 const recentCosts = ref<RecentCost[]>([])
 const loadingRecent = ref(false)
+const editingId = ref<number | null>(null)
+const editCategory = ref<number | null>(null)
+const editAmount = ref<number | null>(null)
+const editNote = ref('')
+const editSaving = ref(false)
 
 const directCategories = computed(() =>
   categories.value.filter((c) => c.type === 'direct'),
@@ -150,6 +156,53 @@ async function save() {
   }
 }
 
+function startEdit(cost: RecentCost) {
+  editingId.value = cost.id
+  editCategory.value = cost.category_id
+  editAmount.value = parseFloat(cost.amount)
+  editNote.value = cost.note || ''
+}
+
+function cancelEdit() {
+  editingId.value = null
+}
+
+async function saveEdit(cost: RecentCost) {
+  if (!editCategory.value || !editAmount.value) return
+  editSaving.value = true
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || '/api'
+    await fetch(`${API_URL}/quick-cost/${cost.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        category_id: editCategory.value,
+        amount: editAmount.value,
+        note: editNote.value || null,
+      }),
+    })
+    editingId.value = null
+    await fetchRecent()
+    emit('added')
+  } catch {
+    errorMessage.value = 'Error al actualizar'
+  } finally {
+    editSaving.value = false
+  }
+}
+
+async function deleteCost(cost: RecentCost) {
+  if (!confirm('¿Eliminar este costo?')) return
+  try {
+    const API_URL = import.meta.env.VITE_API_URL || '/api'
+    await fetch(`${API_URL}/quick-cost/${cost.id}`, { method: 'DELETE' })
+    await fetchRecent()
+    emit('added')
+  } catch {
+    errorMessage.value = 'Error al eliminar'
+  }
+}
+
 onMounted(() => {
   fetchCategories()
   fetchRecent()
@@ -234,14 +287,39 @@ onMounted(() => {
             <th>Categoria</th>
             <th>Monto</th>
             <th>Nota</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="cost in recentCosts" :key="cost.id">
-            <td>{{ formatDate(cost.date) }}</td>
-            <td>{{ cost.category }}</td>
-            <td>{{ formatAmount(cost.amount, cost.currency) }}</td>
-            <td class="qc__note-cell">{{ cost.note || '--' }}</td>
+            <template v-if="editingId === cost.id">
+              <td>{{ formatDate(cost.date) }}</td>
+              <td>
+                <select v-model="editCategory" class="qc__inline-select">
+                  <option v-for="cat in directCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+                </select>
+              </td>
+              <td>
+                <input v-model.number="editAmount" type="number" step="0.01" class="qc__inline-input" />
+              </td>
+              <td>
+                <input v-model="editNote" type="text" class="qc__inline-input" placeholder="Nota..." />
+              </td>
+              <td class="qc__actions-cell">
+                <button class="qc__icon-btn qc__icon-btn--save" :disabled="editSaving" @click="saveEdit(cost)">✓</button>
+                <button class="qc__icon-btn" @click="cancelEdit">✕</button>
+              </td>
+            </template>
+            <template v-else>
+              <td>{{ formatDate(cost.date) }}</td>
+              <td>{{ cost.category }}</td>
+              <td>{{ formatAmount(cost.amount, cost.currency) }}</td>
+              <td class="qc__note-cell">{{ cost.note || '--' }}</td>
+              <td class="qc__actions-cell">
+                <button class="qc__icon-btn" @click="startEdit(cost)">✎</button>
+                <button class="qc__icon-btn qc__icon-btn--delete" @click="deleteCost(cost)">✕</button>
+              </td>
+            </template>
           </tr>
         </tbody>
       </table>
@@ -508,5 +586,55 @@ onMounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.qc__actions-cell {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.qc__icon-btn {
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  margin-left: 4px;
+}
+
+.qc__icon-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.qc__icon-btn--save {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.qc__icon-btn--delete:hover {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.qc__inline-select,
+.qc__inline-input {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface, #fff);
+}
+
+.qc__inline-input[type='number'] {
+  max-width: 90px;
+}
+
+/* Bottom padding fix */
+.qc__recent {
+  padding-bottom: 4px;
 }
 </style>
