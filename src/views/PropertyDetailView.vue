@@ -517,7 +517,8 @@ async function updateFromAvantio() {
     if (e instanceof Error && e.message === 'Cancelled') {
       updateMessage.value = null
     } else {
-      updateMessage.value = e instanceof Error ? e.message : 'Error al actualizar'
+      const msg = e instanceof Error ? e.message : 'Error al actualizar'
+      updateMessage.value = msg.startsWith('HTTP') ? 'Error al importar desde Avantio. Intente nuevamente.' : msg
     }
   } finally {
     updating.value = false

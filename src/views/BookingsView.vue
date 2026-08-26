@@ -7,18 +7,35 @@ const bookings = ref<Booking[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 const searchQuery = ref('')
+const statusFilter = ref('')
+
+const statusGroups: Record<string, string[]> = {
+  'Confirmada': ['confirmed', 'confirmada'],
+  'Pre-reserva': ['pre-booking', 'prereserva', 'pre_booking'],
+  'Petición': ['information_request', 'petición_información'],
+  'Cancelada': ['cancelled', 'cancelada'],
+  'Propietario': ['owner_booking', 'de_propietario'],
+  'No disponible': ['not_available', 'no_disponible', 'Not Available'],
+}
 
 const filteredBookings = computed(() => {
-  if (!searchQuery.value.trim()) return bookings.value
-  const q = searchQuery.value.toLowerCase()
-  return bookings.value.filter(
-    (b) =>
-      b.avantio_reference?.toLowerCase().includes(q) ||
-      b.avantio_id?.toLowerCase().includes(q) ||
-      b.property?.name?.toLowerCase().includes(q) ||
-      b.status?.toLowerCase().includes(q) ||
-      b.channel?.toLowerCase().includes(q),
-  )
+  let result = bookings.value
+  if (statusFilter.value) {
+    const statuses = statusGroups[statusFilter.value] || [statusFilter.value]
+    result = result.filter(b => statuses.includes(b.status?.toLowerCase() || ''))
+  }
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(
+      (b) =>
+        b.avantio_reference?.toLowerCase().includes(q) ||
+        b.avantio_id?.toLowerCase().includes(q) ||
+        b.property?.name?.toLowerCase().includes(q) ||
+        b.status?.toLowerCase().includes(q) ||
+        b.channel?.toLowerCase().includes(q),
+    )
+  }
+  return result
 })
 
 function statusClass(status: string | null): string {
@@ -79,7 +96,11 @@ onMounted(fetchBookings)
           Mostrando {{ filteredBookings.length }} reservas
         </p>
       </div>
-      <div class="bookings__search">
+      <div class="bookings__filters">
+        <select v-model="statusFilter" class="input bookings__status-filter">
+          <option value="">Todos los estados</option>
+          <option v-for="(_, label) in statusGroups" :key="label" :value="label">{{ label }}</option>
+        </select>
         <input
           v-model="searchQuery"
           type="text"
@@ -176,8 +197,18 @@ onMounted(fetchBookings)
   font-size: 0.9rem;
 }
 
-.bookings__search .input {
-  min-width: 300px;
+.bookings__filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.bookings__filters .input {
+  min-width: 200px;
+}
+
+.bookings__status-filter {
+  min-width: 160px;
 }
 
 .bookings__loading,
@@ -223,7 +254,12 @@ code {
     font-size: 1.3rem;
   }
 
-  .bookings__search .input {
+  .bookings__filters {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .bookings__filters .input {
     min-width: 0;
     width: 100%;
   }
