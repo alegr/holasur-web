@@ -35,6 +35,7 @@ function jobLabel(job: ImportJob): string {
 
 const hasJobs = computed(() => jobs.value.length > 0)
 const activeCount = computed(() => jobs.value.filter(j => ['queued', 'importing', 'waiting_for_login'].includes(j.status)).length)
+const finishedCount = computed(() => jobs.value.filter(j => j.status === 'done' || j.status === 'error').length)
 
 const sortedJobs = computed(() => {
   return [...jobs.value].sort((a, b) => {
@@ -51,6 +52,12 @@ async function poll() {
   } catch {
     // Importer not reachable — ignore
   }
+}
+
+async function clearFinished() {
+  const finished = jobs.value.filter(j => j.status === 'done' || j.status === 'error')
+  await Promise.all(finished.map(j => importerApi.dismissJob(j.id).catch(() => {})))
+  jobs.value = jobs.value.filter(j => j.status !== 'done' && j.status !== 'error')
 }
 
 async function dismissJob(jobId: string) {
@@ -116,6 +123,9 @@ onUnmounted(() => {
             <button v-if="job.status === 'importing'" class="it__job-cancel" @click.stop="cancelActiveJob">Cancelar</button>
             <button v-else-if="job.status === 'done' || job.status === 'error'" class="it__job-dismiss" @click.stop="dismissJob(job.id)">&times;</button>
           </div>
+        </div>
+        <div v-if="finishedCount > 0" class="it__footer">
+          <button class="it__clear-btn" @click="clearFinished">Limpiar terminados</button>
         </div>
       </div>
     </div>
@@ -269,6 +279,26 @@ onUnmounted(() => {
 
 .it__job-cancel:hover {
   opacity: 1;
+  text-decoration: underline;
+}
+
+.it__footer {
+  padding: 6px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  text-align: center;
+}
+
+.it__clear-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+
+.it__clear-btn:hover {
+  color: var(--color-text);
   text-decoration: underline;
 }
 
