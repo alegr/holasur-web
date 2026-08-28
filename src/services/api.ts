@@ -193,7 +193,7 @@ export interface ImportJob {
   type: 'bulk' | 'detail'
   entity: string
   avantioId: string | null
-  status: 'queued' | 'importing' | 'done' | 'error'
+  status: 'queued' | 'importing' | 'done' | 'error' | 'waiting_for_login'
   records: number
   error: string | null
   createdAt: number
