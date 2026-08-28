@@ -19,8 +19,8 @@ import {
   type PropertyInventoryItem,
 } from '@/services/api'
 import QuickCostWidget from '@/components/QuickCostWidget.vue'
-import AvantioLoginModal from '@/components/AvantioLoginModal.vue'
 import { useAvantioSession } from '@/composables/useAvantioSession'
+import { hasActiveJob } from '@/composables/useImportJobs'
 
 const avantio = useAvantioSession()
 
@@ -507,12 +507,12 @@ async function updateFromAvantio() {
   updating.value = true
   updateMessage.value = 'Conectando con Avantio...'
   try {
-    const sessionId = await avantio.getSession()
-    updateMessage.value = 'Importando detalle de propiedad...'
-    await importerApi.importDetail(sessionId, 'properties', property.value?.avantio_id || undefined)
-    updateMessage.value = 'Actualizado correctamente'
-    await fetchData()
-    setTimeout(() => { updateMessage.value = null }, 3000)
+    const avantioId = property.value?.avantio_id || ''
+    // Create job immediately — shows in tracker before login
+    await importerApi.createJob('detail', 'properties', avantioId || undefined)
+    updateMessage.value = null
+    // Ensure session is logged in — processQueue will pick up the job
+    await avantio.getSession()
   } catch (e) {
     if (e instanceof Error && e.message === 'Cancelled') {
       updateMessage.value = null
@@ -520,9 +520,9 @@ async function updateFromAvantio() {
       const msg = e instanceof Error ? e.message : 'Error al actualizar'
       updateMessage.value = msg.startsWith('HTTP') ? 'Error al importar desde Avantio. Intente nuevamente.' : msg
     }
-  } finally {
     updating.value = false
   }
+  // updating stays true — hasActiveJob keeps button disabled via polling
 }
 
 onMounted(fetchData)
@@ -558,7 +558,7 @@ onMounted(fetchData)
           <span v-if="property.avantio_id" class="detail__avantio-id">
             Avantio: {{ property.avantio_id }}
           </span>
-          <button v-if="importerAvailable" class="btn btn--secondary btn--small" :disabled="updating" @click="updateFromAvantio">
+          <button v-if="importerAvailable" class="btn btn--secondary btn--small" :disabled="updating || hasActiveJob('properties', property?.avantio_id || undefined)" @click="updateFromAvantio">
             <span v-if="updating" class="spinner spinner--small"></span>
             {{ updating ? '' : '↻' }} Actualizar desde Avantio
           </button>
@@ -1260,7 +1260,6 @@ onMounted(fetchData)
       </div>
     </template>
 
-    <AvantioLoginModal />
   </div>
 </template>
 

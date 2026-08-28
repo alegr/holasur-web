@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { authApi } from '@/services/api'
 import ImportTracker from '@/components/ImportTracker.vue'
+import AvantioLoginModal from '@/components/AvantioLoginModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,6 +120,7 @@ watch(() => route.path, () => {
         <RouterView />
       </main>
       <ImportTracker />
+      <AvantioLoginModal />
     </div>
   </template>
 </template>

@@ -188,6 +188,19 @@ export interface ImportStatus {
   error?: string
 }
 
+export interface ImportJob {
+  id: string
+  type: 'bulk' | 'detail'
+  entity: string
+  avantioId: string | null
+  status: 'queued' | 'importing' | 'done' | 'error'
+  records: number
+  error: string | null
+  createdAt: number
+  startedAt: number | null
+  finishedAt: number | null
+}
+
 export const importerApi = {
   startImport(): Promise<ImportSession> {
     return request<ImportSession>(`${IMPORTER_URL}/import/start`, { method: 'POST' })
@@ -219,10 +232,27 @@ export const importerApi = {
     sessionId: string,
     entity: string,
     avantioId?: string,
-  ): Promise<{ entity: string; detail: Record<string, unknown> | null; status: string }> {
+  ): Promise<{ entity: string; detail: Record<string, unknown> | null; status: string; jobId?: string }> {
     return request(`${IMPORTER_URL}/import/${sessionId}/detail/${entity}`, {
       method: 'POST',
       body: avantioId ? JSON.stringify({ avantio_id: avantioId }) : undefined,
+    })
+  },
+
+  getJobs(): Promise<ImportJob[]> {
+    return request<ImportJob[]>(`${IMPORTER_URL}/import/jobs`)
+  },
+
+  createJob(type: 'bulk' | 'detail', entity: string, avantioId?: string): Promise<ImportJob> {
+    return request<ImportJob>(`${IMPORTER_URL}/import/jobs`, {
+      method: 'POST',
+      body: JSON.stringify({ type, entity, avantioId }),
+    })
+  },
+
+  dismissJob(jobId: string): Promise<{ dismissed: boolean; jobId: string }> {
+    return request<{ dismissed: boolean; jobId: string }>(`${IMPORTER_URL}/import/jobs/${jobId}`, {
+      method: 'DELETE',
     })
   },
 }

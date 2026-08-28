@@ -53,11 +53,14 @@ async function getSession(): Promise<string> {
 
   // Check for existing active session
   try {
-    const active = await importerApi.getActiveSession()
+    const active = await importerApi.getActiveSession() as any
     if (active.active && active.sessionId) {
       sessionId.value = active.sessionId
-      status.value = 'logged_in'
-      return active.sessionId
+      if (['logged_in', 'importing', 'done'].includes(active.status)) {
+        status.value = 'logged_in'
+        return active.sessionId
+      }
+      // Session exists but needs login — fall through to polling
     }
   } catch { /* no active session */ }
 
@@ -152,7 +155,7 @@ function cancel() {
 }
 
 export function useAvantioSession() {
-  onUnmounted(stopPolling)
+  // Don't stop polling on unmount — the session is global and the login modal is in App.vue
 
   return {
     sessionId,
